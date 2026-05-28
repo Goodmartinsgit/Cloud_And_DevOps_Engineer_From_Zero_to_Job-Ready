@@ -2,20 +2,18 @@
 
 
 # IAM & Secrets Management
-## A Comprehensive Guide for Cloud & DevOps Engineers
-### From Beginner to Advanced
+## A Comprehensive Learning Book for Cloud & DevOps Engineers
+### Beginner to Advanced
 
 ---
 
-> **Who this book is for:** Cloud and DevOps engineering students who want to understand identity, access control, and secrets management deeply — not just enough to pass a quiz, but enough to design and operate real systems confidently.
-
-> **What you need to begin:** Basic familiarity with AWS (you've created resources before), some exposure to the command line, and curiosity. Everything else will be built from the ground up.
+> **Who this book is for:** Cloud and DevOps engineering students who want to go from "I've heard of IAM" to "I can design, implement, audit, and respond to secrets incidents in production." Every concept is built from the ground up. Nothing is assumed. Everything is explained.
 
 ---
 
 ## Table of Contents
 
-1. [Introduction: Why Identity and Secrets Are the Foundation of Everything](#introduction)
+1. [Introduction: Why IAM and Secrets Management Matter](#introduction)
 2. [Chapter 1: IAM Design Principles](#chapter-1)
 3. [Chapter 2: AWS IAM Deep Dive](#chapter-2)
 4. [Chapter 3: AWS Secrets Manager](#chapter-3)
@@ -32,229 +30,180 @@
 
 ---
 
-# Introduction: Why Identity and Secrets Are the Foundation of Everything {#introduction}
+## Introduction: Why IAM and Secrets Management Matter {#introduction}
 
-Imagine you've built a magnificent house. You've installed the best locks, reinforced the walls, added security cameras — and then you left the front door key under the mat and gave a copy of the master key to everyone who ever visited. It doesn't matter how strong your walls are. The house is compromised.
+Imagine you leave your house every morning. You have a key. Your partner has a key. The cleaner has a key. The dog-walker has a key. Now imagine you never change the locks, never audit who has keys, and one day you hand a key to a contractor who subcontracts the job to someone else entirely. A few months later, something goes missing.
 
-This is exactly what happens in the cloud when organisations ignore identity and secrets management. They build powerful infrastructure — load balancers, auto-scaling groups, containerised microservices — and then leave database passwords hardcoded in source code, give every developer administrator access "just to keep things simple," and never rotate credentials because "nothing has gone wrong yet."
+This is exactly what happens in cloud environments when Identity and Access Management (IAM) and secrets management are treated as afterthoughts.
 
-Then something goes wrong.
+In cloud computing, **identity is the new perimeter**. Traditional security was about building walls — firewalls, VPNs, network segments. If you were "inside" the network, you were trusted. Today's cloud-native architectures are distributed. Services talk to other services across the internet. Developers deploy from laptops, CI/CD pipelines run in the cloud, containers spin up and down in seconds. The old walls don't work.
 
-In 2019, a misconfigured AWS IAM role at Capital One allowed an attacker to access over 100 million customer records. In 2020, the SolarWinds breach involved attackers moving laterally through networks because service accounts had excessive permissions. In countless smaller incidents every week, developers accidentally commit API keys to GitHub and find their AWS account running thousands of crypto-mining instances before morning.
+What does work is knowing *who* is doing *what*, *where*, *when*, and *why* — and ensuring they can only do what they're supposed to do, with the credentials they're supposed to have, for the time they're supposed to have them.
 
-**Identity and Access Management (IAM)** is the discipline of ensuring that every entity — human or machine — can only access exactly what it needs and nothing more. **Secrets management** is the discipline of ensuring that sensitive credentials (passwords, API keys, certificates, tokens) are stored, distributed, rotated, and audited in ways that make them usable but not exploitable.
+**This book covers:**
 
-Together, they form the security foundation that every other control depends on.
+- How to design IAM systems that are secure by principle, not by accident
+- How AWS IAM works under the hood, including its policy evaluation engine
+- How to manage secrets — database passwords, API keys, TLS certificates — so they're never exposed, always rotated, and always audited
+- How to use AWS-native tools (Secrets Manager, Parameter Store, ACM) alongside open-source tools (HashiCorp Vault, cert-manager, External Secrets Operator)
+- How to scan your code and git history for accidentally committed secrets
+- How to build the kind of audit trail that satisfies compliance frameworks like SOC 2, PCI-DSS, and ISO 27001
+- How zero-trust architecture ties all of this together
 
-## What You Will Learn in This Book
+By the end of this book, you will be able to design, implement, operate, and audit a complete secrets management and identity system — the kind of work that senior engineers and security engineers do every day in professional environments.
 
-This book walks you through the complete picture of modern secrets and identity management in cloud-native environments:
-
-- The principles that guide every access control decision you will ever make
-- How AWS IAM actually works under the hood — the evaluation logic, the edge cases, the powerful features most engineers never use
-- How to store and rotate secrets using AWS-native tools and open-source alternatives
-- How containers and Kubernetes handle secrets — and the surprising ways the defaults fail you
-- How modern workloads authenticate without static credentials using OIDC
-- How to automatically manage TLS certificates so they never expire unexpectedly
-- How to find secrets that have already leaked into your codebase
-- How to audit, prove compliance, and respond when something goes wrong
-- How zero-trust changes the way you think about network and identity boundaries
-
-Each chapter builds on the last. By the end, you will not just know how to use these tools — you will understand *why* they are designed the way they are, and that understanding will let you make good decisions in situations you have never seen before.
-
-## A Note on Hands-On Practice
-
-Every chapter ends with a practical task. These tasks are not toy exercises — they are modelled on real scenarios you will encounter in DevOps and cloud engineering roles. Some will feel challenging. That is intentional. The gap between reading about something and actually doing it is where real learning happens.
-
-You will need an AWS account (the free tier will cover most tasks), a Kubernetes cluster (a local kind or minikube cluster works fine), and a GitHub account. Setup instructions are included where needed.
-
-Let's begin.
+Let's start from the beginning.
 
 ---
 
-# Chapter 1: IAM Design Principles — Least Privilege, Separation of Duties, Need-to-Know {#chapter-1}
+## Chapter 1: IAM Design Principles — Least Privilege, Separation of Duties, Need-to-Know {#chapter-1}
 
-## Starting With a Story
+### The Problem This Solves
 
-Picture a large hospital. The hospital has hundreds of staff: surgeons, nurses, receptionists, cleaners, accountants, IT staff. Each of them needs access to different things to do their job.
+Before we talk about AWS, before we talk about any technology, we need to talk about *why* IAM exists at all.
 
-A surgeon needs access to operating theatres and patient medical records. A cleaner needs access to the same corridors but absolutely not to patient records. A receptionist needs to see appointment schedules but not surgical notes. An accountant needs billing information but not patient diagnoses.
+Think about a hospital. Doctors can access patient records. Receptionists can book appointments. Cleaners cannot access either. The payroll team can see salary information, but not patient records. A surgeon can prescribe medications, but a nurse practitioner has a different scope.
 
-Now imagine if, to "keep things simple," the hospital gave every member of staff a master key that opened every door and a login that showed every record. The surgeon who loses their keycard now exposes everything. A disgruntled receptionist can browse confidential medical histories. A cleaning contractor can wander into the pharmacy.
+None of this is accidental. It's designed. Every person in that hospital has access to exactly what they need to do their job — and nothing more.
 
-This is the problem that IAM design principles solve.
+Cloud environments need the same discipline. When every developer has admin access to production, a single compromised laptop can bring down an entire company. When service accounts have more permissions than they need, a single exploited vulnerability can give an attacker the keys to the kingdom.
 
-## Principle 1: Least Privilege
+The three principles in this chapter — least privilege, separation of duties, and need-to-know — are the foundation that everything else in this book builds upon.
 
-**The core idea:** Every identity (person, application, service) should have the minimum permissions required to do its job — and nothing more.
+---
 
-This sounds simple but is surprisingly hard to implement well in practice, for several reasons:
+### Principle 1: Least Privilege
 
-**Reason 1: It is easier to give too much access than too little.** When a developer says "I need access to S3," granting `s3:*` on `*` takes five seconds. Figuring out which specific S3 actions on which specific buckets they actually need takes five minutes. Under time pressure, most people take the five-second path.
+**Definition:** Every user, service, application, or system should have the minimum permissions necessary to perform its intended function — and nothing more.
 
-**Reason 2: Access tends to accumulate over time.** An engineer gets temporary access to a production database to debug an incident. The incident is resolved, but the access is never revoked. Six months later, that engineer has moved to a different team but still has production database access. This is called "privilege creep."
+**Analogy:** You hire a contractor to paint your living room. You give them a key to the front door. You do *not* give them the code to your safe, access to your car, or a key to your neighbour's house. They need exactly what they need to do the job. Nothing else.
 
-**Reason 3: Developers often don't know in advance exactly what access they will need.** So they request broad access to avoid getting blocked, intending to narrow it down later. Later never comes.
+**In cloud terms:** If a Lambda function needs to read from an S3 bucket called `my-app-uploads`, its IAM role should only be able to do `s3:GetObject` on that specific bucket — not `s3:*` on all buckets. Not `*:*` on everything.
 
-### How to Apply Least Privilege in Practice
+**Why this matters in practice:**
 
-**Start with deny-all.** Instead of starting with broad permissions and removing what you don't need, start with no permissions and add only what is explicitly required. In AWS, this is actually the default — new IAM identities have no permissions until you attach a policy.
+A common pattern in early cloud adoption looks like this:
 
-**Use the principle of just-in-time access.** Rather than giving permanent access to sensitive systems, give temporary elevated access when it is needed and have it expire automatically. AWS IAM supports this through session policies and temporary credentials.
-
-**Review permissions regularly.** Set a calendar reminder to review who has access to what, at least quarterly. AWS IAM Access Analyzer can help you identify permissions that have not been used recently.
-
-**Use AWS IAM Access Analyzer to identify overly permissive policies.** This tool analyses your policies and tells you which permissions are actually being used. If a role has been granted `ec2:DescribeInstances` but has never called that API, you should remove it.
-
-Here is a concrete example. Suppose you have a Lambda function that needs to read from one specific DynamoDB table and write logs to CloudWatch. The least-privilege policy looks like this:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "ReadFromOrdersTable",
-      "Effect": "Allow",
-      "Action": [
-        "dynamodb:GetItem",
-        "dynamodb:Query",
-        "dynamodb:Scan"
-      ],
-      "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/Orders"
-    },
-    {
-      "Sid": "WriteToCloudWatchLogs",
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents"
-      ],
-      "Resource": "arn:aws:logs:eu-west-1:123456789012:log-group:/aws/lambda/order-processor:*"
-    }
-  ]
-}
+```
+Developer creates a service.
+Service needs to access DynamoDB.
+Developer creates an IAM user.
+Developer gives it AdministratorAccess to make things work quickly.
+Developer moves on.
 ```
 
-Notice what this policy does *not* include:
-- No `dynamodb:DeleteItem` — this function should never delete orders
-- No `dynamodb:PutItem` — it should only read, not write
-- No access to other DynamoDB tables — only the Orders table
-- No CloudWatch permissions beyond what Lambda needs for logging
-- The CloudWatch resource ARN is scoped to a specific log group, not `*`
+Six months later, that service is compromised through an unpatched dependency. The attacker now has `AdministratorAccess` to your entire AWS account. They can create new users, exfiltrate your S3 data, spin up cryptocurrency miners, and delete your backups.
 
-Compare this to what you commonly see in the wild:
+Least privilege would have meant: the service can only read and write to one DynamoDB table. A compromise still hurts, but the blast radius is contained.
 
+**How to implement least privilege:**
+
+1. **Start with zero permissions.** Don't add permissions until they're needed, rather than starting with broad permissions and trying to narrow them down.
+
+2. **Use permission boundaries.** These set a maximum permission level that can never be exceeded, even if someone tries to grant more.
+
+3. **Review regularly.** Access needs change. A developer who worked on a project two years ago probably doesn't need access to it anymore.
+
+4. **Use AWS IAM Access Analyzer.** This tool examines your policies and tells you which permissions are actually being used. Permissions that haven't been used in 90 days are candidates for removal.
+
+---
+
+### Principle 2: Separation of Duties
+
+**Definition:** No single person or system should have enough access to complete a sensitive operation entirely on their own.
+
+**Analogy:** In traditional banking, one person enters a transaction and a different person approves it. One person can't both create a payment and authorise it. This prevents both fraud and accidental errors.
+
+**In cloud terms:** The person who writes application code should not be the same person who deploys it to production. The person who can create IAM users should not be the same person who can assign administrator privileges. A CI/CD pipeline that builds code should not have the same permissions as the pipeline that deploys it.
+
+**Why this matters:**
+
+- It prevents insider threats — a single malicious actor can't complete a damaging action alone
+- It prevents accidents — two pairs of eyes catch mistakes
+- It satisfies compliance requirements — SOC 2, PCI-DSS, and others explicitly require separation of duties
+
+**Common implementations:**
+
+- **Four-eyes principle for production deployments:** A deployment to production requires approval from a second team member.
+- **Break-glass accounts:** Emergency administrative access exists but requires dual approval to activate, and every use is logged and reviewed.
+- **Read-only production access by default:** Developers can see logs and metrics but cannot change production configuration without going through a change management process.
+
+---
+
+### Principle 3: Need-to-Know
+
+**Definition:** Even within the set of things someone is *allowed* to do, they should only be able to access information that is *relevant to their current task*.
+
+**Analogy:** A detective investigating one case doesn't automatically get access to all case files in the department. They have access to their specific cases. A journalist given access to leaked documents gets access to the specific files relevant to the story they're working on, not everything.
+
+**In cloud terms:** A developer debugging a customer support issue may need to temporarily access a specific subset of customer data. They don't need permanent access to the entire customer database. Access should be:
+
+- **Time-limited** — granted for a specific window, then revoked
+- **Scoped** — limited to the specific data or system relevant to the task
+- **Logged** — every access leaves a trail
+
+**The intersection of all three principles:**
+
+When you apply all three principles together, you get a system where:
+
+- Each entity has only the permissions it needs (least privilege)
+- No single entity can perform dangerous operations alone (separation of duties)
+- Access to sensitive data is controlled, time-limited, and logged (need-to-know)
+
+This is the foundation of a mature security posture.
+
+---
+
+### How This Works in the Real World
+
+In a professional cloud environment, these principles manifest as:
+
+- **IAM roles instead of IAM users** for all application workloads — roles are temporary, scoped credentials
+- **Just-in-time access** — engineers request elevated access for a specific task, get it for 1–4 hours, and it's automatically revoked
+- **Automated access reviews** — every 90 days, access is reviewed and unused permissions are removed
+- **Infrastructure as Code for IAM** — all IAM policies are defined in Terraform or CloudFormation, reviewed in pull requests, and deployed through a pipeline — no manual clicks in the AWS console
+- **Separation between environments** — the IAM roles that work in development have no permissions in production; different AWS accounts entirely
+
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Using wildcard permissions as a shortcut**
 ```json
 {
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "*",
-      "Resource": "*"
-    }
-  ]
+  "Effect": "Allow",
+  "Action": "*",
+  "Resource": "*"
 }
 ```
+This grants full administrator access. It's the equivalent of giving everyone a master key to every door. Always specify exact actions and resources.
 
-This grants the Lambda function administrator access to your entire AWS account. If this function is ever compromised — through a dependency vulnerability, an injection attack, or a bug — an attacker has complete control of your AWS environment.
+**Mistake 2: Not removing access when it's no longer needed**
+When a project ends, when an employee leaves, when a service is deprecated — the access should be revoked. Access creep (accumulated permissions that nobody uses) is a major security risk.
 
-## Principle 2: Separation of Duties
+**Mistake 3: Conflating authentication and authorisation**
+Authentication is proving who you are (your username and password, your MFA token). Authorisation is what you're allowed to do after you've proven who you are. IAM is primarily about authorisation. Both matter.
 
-**The core idea:** No single person or system should be able to perform a sensitive operation end-to-end without another person or system being involved.
+**Mistake 4: Granting permissions to users instead of roles**
+IAM users have long-lived credentials (access keys) that can be leaked, stolen, or forgotten. IAM roles issue temporary credentials that expire automatically. Prefer roles for everything.
 
-Think about how a bank handles large wire transfers. One employee can initiate a transfer. A different employee must approve it. The approver cannot also be the initiator. This means that stealing money requires compromising two separate people, not one.
+---
 
-In cloud engineering, separation of duties looks like this:
+### Practical Task — Chapter 1
 
-- The engineer who writes infrastructure code should not be the same person who approves it for deployment to production
-- The system that builds your application artefacts should not also have the permissions to deploy them directly to production
-- The person who manages IAM policies should not also be able to use those policies to grant themselves access to sensitive data
+**Task: IAM Audit — Review all users/roles in your AWS account, remove all unused permissions**
 
-### Separation of Duties in AWS
+This task mirrors real work: a security audit of an AWS account's IAM configuration.
 
-In AWS, you implement separation of duties through a combination of:
+**Step 1: Generate an IAM credential report**
 
-**Multiple AWS accounts.** Your development environment lives in one AWS account, staging in another, production in a third. A developer with full access to dev has no access to production by default. This is the single most effective structural control you can implement.
-
-**IAM roles with restricted trust policies.** A role can only be assumed by specific identities. If the deployment role can only be assumed by your CI/CD system, a developer cannot assume it even if they know the role ARN.
-
-**Requiring MFA for sensitive operations.** You can write IAM conditions that require multi-factor authentication before certain actions are permitted, even for people who are already authenticated.
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "RequireMFAForProductionDeploy",
-      "Effect": "Deny",
-      "Action": [
-        "cloudformation:CreateStack",
-        "cloudformation:UpdateStack",
-        "cloudformation:DeleteStack"
-      ],
-      "Resource": "arn:aws:cloudformation:*:*:stack/production-*/*",
-      "Condition": {
-        "BoolIfExists": {
-          "aws:MultiFactorAuthPresent": "false"
-        }
-      }
-    }
-  ]
-}
-```
-
-This policy denies anyone from creating, updating, or deleting production CloudFormation stacks unless their session was authenticated with MFA. The `Deny` effect overrides any `Allow` effects elsewhere — we will explore this in depth in Chapter 2.
-
-## Principle 3: Need-to-Know
-
-**The core idea:** Access to information should be granted only to those who need it to perform their specific function, regardless of their general level of trust or seniority.
-
-This is subtly different from least privilege. Least privilege is about actions (what can you do?). Need-to-know is about information (what can you see?). A senior engineer might have the privilege to deploy infrastructure but should not see customer PII data if their role does not require it. A database administrator might need full access to the database engine but should not see the contents of the medical records table.
-
-In practice, need-to-know in AWS is implemented through:
-
-**Resource-level policies with data classification tags.** You can tag your AWS resources with data classification levels (e.g., `DataClassification: Confidential`) and write IAM conditions that only grant access when the requestor has a corresponding attribute.
-
-**S3 bucket policies that restrict access to specific prefixes.** Rather than granting access to an entire S3 bucket, grant access only to the prefix (folder) containing data that a given role needs.
-
-**KMS key policies.** Data encryption keys can have their own policies controlling who can use them to decrypt data. Encrypting a DynamoDB table with a specific KMS key means that only identities with permission to use that key can read the table's data, regardless of their DynamoDB permissions.
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Using AWS managed policies as-is for application roles.** AWS provides managed policies like `AmazonS3FullAccess` that are convenient but almost always too broad for production workloads. Always create custom policies scoped to exactly what your application needs.
-
-**Mistake 2: Treating IAM as a one-time configuration.** Access requirements change as applications evolve. Build a habit of reviewing and tightening permissions regularly.
-
-**Mistake 3: Conflating authentication and authorisation.** Authentication answers "who are you?" Authorisation answers "what are you allowed to do?" IAM handles both, but they are different concerns. A valid IAM identity with no permissions cannot do anything harmful — always verify both.
-
-**Mistake 4: Granting permissions to users instead of roles.** Users have permanent credentials. Roles issue temporary credentials. Always grant permissions to roles, and have humans and applications assume those roles. This way, there are no long-lived access keys to leak.
-
-## How This Works in the Real World
-
-At a company running a microservices architecture on AWS, there might be hundreds of services, each needing access to different combinations of AWS resources. A well-designed IAM structure means:
-
-- Each service has its own IAM role with permissions scoped to exactly what that service needs
-- Engineers access production only through specific roles that require MFA and leave audit trails
-- The CI/CD pipeline has a deployment role that can create and update infrastructure but cannot read customer data
-- A security team role can read CloudTrail logs and IAM configurations but cannot modify running infrastructure
-
-This structure means that a compromised service only exposes the resources that service had access to — not the entire environment.
-
-## Practical Task: IAM Audit
-
-**Scenario:** You have just joined a company as a DevOps engineer. Your first task is to audit the IAM configuration of their AWS account and clean it up.
-
-**What you will do:**
-
-**Step 1: Generate an IAM credential report.**
+The credential report shows every IAM user in your account, when they last used their password, when they last used their access keys, and whether MFA is enabled.
 
 ```bash
-# Generate the credential report
+# Generate the credential report (takes a few seconds)
 aws iam generate-credential-report
 
-# Download and view it
+# Download and view the credential report
 aws iam get-credential-report \
   --query 'Content' \
   --output text | base64 --decode > credential-report.csv
@@ -263,210 +212,119 @@ aws iam get-credential-report \
 cat credential-report.csv
 ```
 
-The credential report shows every IAM user in your account, when they last logged in, whether they have MFA enabled, when their access keys were last used, and whether their passwords have ever been used. Any user who has not logged in for 90 days or more is a candidate for deactivation.
+The CSV file contains columns including:
+- `user` — the IAM username
+- `password_last_used` — when the password was last used (or `N/A` for programmatic-only users)
+- `access_key_1_last_used_date` — when access key 1 was last used
+- `mfa_active` — whether MFA is enabled
 
-**Step 2: List all IAM users and their attached policies.**
+**Step 2: List all IAM roles and their last activity**
 
 ```bash
-# List all users
-aws iam list-users --query 'Users[*].UserName' --output table
-
-# For each user, list their policies (replace USERNAME)
-aws iam list-attached-user-policies --user-name USERNAME
-aws iam list-user-policies --user-name USERNAME  # inline policies
-
-# List all groups and their policies
-aws iam list-groups
-aws iam list-attached-group-policies --group-name GROUPNAME
+# List all IAM roles
+aws iam list-roles \
+  --query 'Roles[*].[RoleName, CreateDate, RoleLastUsed.LastUsedDate]' \
+  --output table
 ```
 
-**Step 3: Identify and remove unused permissions.**
-
-Use IAM Access Analyzer to find unused permissions:
+**Step 3: Use IAM Access Analyzer to find unused permissions**
 
 ```bash
-# List access analysers (create one if none exists)
-aws accessanalyzer list-analyzers
-
-# Create an analyser if needed
+# Create an IAM Access Analyzer (if you don't have one)
 aws accessanalyzer create-analyzer \
-  --analyzer-name account-analyser \
+  --analyzer-name "account-analyzer" \
   --type ACCOUNT
 
-# List findings (unused access)
+# List findings (external access findings)
 aws accessanalyzer list-findings \
-  --analyzer-arn arn:aws:access-analyzer:REGION:ACCOUNT:analyzer/account-analyser \
-  --filter '{"findingType": {"eq": ["UnusedPermission"]}}'
+  --analyzer-arn "arn:aws:access-analyzer:us-east-1:123456789012:analyzer/account-analyzer" \
+  --output table
 ```
 
-**Step 4: Check for users with administrator access.**
+**Step 4: Identify users/roles that haven't been used in 90+ days**
 
 ```bash
-# Find all users/roles with AdministratorAccess attached
-aws iam list-entities-for-policy \
-  --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+# This script checks all IAM users for inactivity
+aws iam list-users --query 'Users[*].UserName' --output text | \
+  tr '\t' '\n' | \
+  while read user; do
+    last_used=$(aws iam get-user --user-name "$user" \
+      --query 'User.PasswordLastUsed' --output text 2>/dev/null)
+    echo "$user: last used $last_used"
+  done
 ```
 
-Document every user or role with administrator access and verify each one has a legitimate business justification. If any do not, remove the attachment.
+**Step 5: Generate a policy with only the permissions actually used**
 
-**Step 5: Verify MFA is enabled for all human users.**
+AWS IAM Access Advisor (different from Access Analyzer) shows you which services a role has actually called:
 
-From the credential report generated in Step 1, look at the `mfa_active` column. Any human user with `mfa_active = false` should either have MFA enabled immediately or be deactivated.
+```bash
+# Get the access report for a specific role
+aws iam generate-service-last-accessed-details \
+  --arn "arn:aws:iam::123456789012:role/MyApplicationRole"
 
-**Expected outcome:** A written audit report listing what you found, what you changed, and what you recommend. This format mirrors what security teams produce in real audits.
+# Use the job ID from the above output to get results
+aws iam get-service-last-accessed-details \
+  --job-id "your-job-id-here" \
+  --output table
+```
 
-## Chapter Summary
+**Step 6: Document your findings and create a remediation plan**
 
-- **Least privilege** means granting only the minimum permissions required. Start with no access and add only what is needed.
-- **Separation of duties** means ensuring no single identity can perform sensitive operations end-to-end. Use multiple accounts, restricted role trust policies, and MFA requirements.
-- **Need-to-know** means restricting access to information by data classification, not just by action type.
-- These principles work together. Least privilege limits the blast radius of a compromise. Separation of duties requires multiple compromises for a significant breach. Need-to-know protects the most sensitive data even from otherwise trusted identities.
-- IAM is not a one-time configuration — it requires regular review and tightening.
+Create a spreadsheet (or markdown file) with:
+- Each user/role
+- Their current permissions
+- When they last used those permissions
+- Your recommendation: remove, restrict, or keep
+
+**What to submit / demonstrate:** A before-and-after comparison showing: (1) the permissions that existed before your audit, (2) which ones you removed or restricted, and (3) why.
 
 ---
 
-# Chapter 2: AWS IAM Deep Dive — Policy Evaluation Logic, Condition Keys, SCPs, Permission Boundaries {#chapter-2}
+### Chapter 1 Summary
 
-## The Engine Under the Hood
+- **Least privilege:** Grant only the permissions needed for the specific task. Nothing more.
+- **Separation of duties:** No single entity should be able to complete a sensitive operation alone.
+- **Need-to-know:** Access to sensitive data should be time-limited, scoped, and logged.
+- These three principles are not optional security theatre — they're the foundation of a resilient system. Every other chapter in this book is an implementation of these principles.
+- Start auditing early and audit regularly. Permissions drift. Systems change. People leave. Access must be continuously reviewed.
 
-Most engineers interact with AWS IAM by attaching policies and testing whether actions succeed or fail. But to design access control that is both secure and maintainable — and to debug it when things go wrong — you need to understand how AWS evaluates permissions decisions.
+---
 
-Think of the IAM evaluation engine as a judge in a courtroom. The judge looks at all the evidence (all the policies that apply to a request) and makes a single decision: allow or deny. But the rules the judge follows are specific and sometimes counterintuitive.
+## Chapter 2: AWS IAM Deep Dive — Policy Evaluation Logic, Condition Keys, SCPs, Permission Boundaries {#chapter-2}
 
-## How AWS Evaluates a Permission Request
+### Building on the Foundation
 
-When you make an API call to AWS (say, `s3:GetObject` on a specific bucket), AWS runs through the following evaluation logic:
+In Chapter 1, we learned *why* IAM exists and the principles behind it. Now we go deep into *how* AWS IAM works mechanically. This chapter is where things get technical, and where many engineers discover that AWS IAM is far more powerful — and more subtle — than they realised.
 
-### Step 1: Is there an explicit Deny anywhere?
+Understanding IAM's evaluation logic is essential. When a permission is denied and you don't know why, when you need to write a policy that works correctly in all cases, when you're designing an IAM architecture for a large organisation — this is the knowledge you'll reach for.
 
-AWS looks at all policies that apply to this request — including identity-based policies (attached to the IAM user or role), resource-based policies (attached to the S3 bucket), Service Control Policies (SCPs from AWS Organizations), and permission boundaries. If *any* of these policies contains an explicit `"Effect": "Deny"` that matches this action and resource, the request is denied immediately. Full stop. No other policy can override an explicit deny.
+---
 
-This is the most important rule in IAM: **explicit denies always win.**
+### What Is an IAM Policy?
 
-### Step 2: Is there an explicit Allow?
+An IAM policy is a JSON document that defines what actions are allowed or denied, on what resources, under what conditions. Policies are attached to identities (users, groups, roles) or resources (S3 buckets, KMS keys, etc.).
 
-If there is no explicit deny, AWS checks whether there is an explicit `"Effect": "Allow"` in any applicable policy. The combination of identity-based policies and resource-based policies is considered.
-
-### Step 3: Is this a cross-account request?
-
-If the request is coming from one AWS account to a resource in a different account (cross-account access), there must be an explicit Allow in *both* the identity-based policy of the requester AND the resource-based policy of the resource. One alone is not enough.
-
-### Step 4: Default Deny
-
-If there is no explicit Allow anywhere, the request is denied by default. This is why new IAM identities cannot do anything — the absence of a policy is treated as a deny.
-
-Here is a diagram of the decision logic:
-
-```
-Request arrives
-      |
-      v
-[Explicit Deny in any policy?] --YES--> DENY
-      |
-      NO
-      v
-[Within an AWS Organizations account?]
-      |
-      YES
-      v
-[Allowed by SCPs?] --NO--> DENY
-      |
-      YES
-      v
-[Permission Boundary attached?]
-      |
-      YES
-      v
-[Allowed by Permission Boundary?] --NO--> DENY
-      |
-      YES
-      v
-[Explicit Allow in identity policy?] --NO--> DENY
-      |
-      YES
-      |
-      v
-[Is this cross-account?]
-      |
-      YES
-      v
-[Explicit Allow in resource policy?] --NO--> DENY
-      |
-      YES
-      v
-ALLOW
-```
-
-## Understanding Policy Types
-
-### Identity-Based Policies
-
-These are attached directly to IAM identities — users, groups, or roles. They define what that identity is allowed (or explicitly denied) to do.
-
-There are two subtypes:
-
-**Managed policies** are standalone JSON documents that you create once and attach to multiple identities. AWS provides hundreds of them (AWS managed policies like `AmazonEC2ReadOnlyAccess`), and you can create your own (customer managed policies).
-
-**Inline policies** are embedded directly into a specific user, group, or role. They are tightly coupled and cannot be reused. Use them sparingly — managed policies are generally preferable because they are easier to audit and maintain.
-
-### Resource-Based Policies
-
-These are attached to specific AWS resources. The most common example is an S3 bucket policy. They define who (which principals) can perform which actions on that resource.
-
-Resource-based policies are essential for cross-account access. If Account A wants to access a bucket in Account B, the bucket's resource policy must explicitly trust Account A's identity, and Account A's IAM policy must allow the s3 actions.
-
-Here is an example S3 bucket policy that allows a specific role from another account to read objects:
+Here's the anatomy of a policy:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "CrossAccountRead",
+      "Sid": "AllowS3ReadAccess",
       "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::ACCOUNT-B-ID:role/DataAnalyticsRole"
-      },
       "Action": [
         "s3:GetObject",
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::my-data-bucket",
-        "arn:aws:s3:::my-data-bucket/*"
-      ]
-    }
-  ]
-}
-```
-
-The `Principal` field is what distinguishes a resource-based policy from an identity-based policy. It explicitly names who is being granted access.
-
-### Service Control Policies (SCPs)
-
-SCPs are available only when you use AWS Organizations — the service that lets you manage multiple AWS accounts as a group. SCPs are attached to organisational units (OUs) or individual accounts, and they act as guardrails: they define the maximum permissions that any identity in that account can have.
-
-Crucially, **SCPs do not grant permissions — they restrict them.** Even if an IAM policy grants an action, an SCP that denies that action wins.
-
-Here is a practical example. Suppose your organisation has a rule that all resources must be created in the EU (Ireland) region. You can enforce this with an SCP:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "DenyNonEURegions",
-      "Effect": "Deny",
-      "NotAction": [
-        "iam:*",
-        "organizations:*",
-        "support:*",
-        "sts:AssumeRole"
+        "arn:aws:s3:::my-bucket",
+        "arn:aws:s3:::my-bucket/*"
       ],
-      "Resource": "*",
       "Condition": {
-        "StringNotEquals": {
-          "aws:RequestedRegion": "eu-west-1"
+        "StringEquals": {
+          "s3:prefix": ["docs/", "reports/"]
         }
       }
     }
@@ -474,30 +332,185 @@ Here is a practical example. Suppose your organisation has a rule that all resou
 }
 ```
 
-This SCP denies all actions *except* IAM, Organizations, Support, and STS operations (which are global services) unless the request is directed to `eu-west-1`. Even if a developer has administrator access in their account, they cannot create an EC2 instance in us-east-1.
+Let's break down every field:
 
-The `NotAction` element is used instead of `Action` here because we want to target *everything except* the listed global services. This is a common pattern for SCPs.
+- **`Version`:** Always `"2012-10-17"`. This is the current policy language version. Don't omit it — some condition key features won't work without it.
 
-### Permission Boundaries
+- **`Statement`:** An array of one or more permission statements. Each statement is evaluated independently.
 
-Permission boundaries are an advanced feature that sets the maximum permissions an IAM entity can have, separate from what policies directly grant it.
+- **`Sid`:** Statement ID. Optional but recommended. A human-readable name for the statement, used for documentation and debugging.
 
-Think of it this way: if an identity-based policy is the set of keys on your keyring, a permission boundary is a filter that says "even if you have these keys, you can only use the ones I approve." A permission boundary does not grant any permissions — it restricts which permissions from identity-based policies are actually effective.
+- **`Effect`:** Either `"Allow"` or `"Deny"`. This is whether the statement grants or revokes the specified action.
 
-Permission boundaries are particularly useful in large organisations where teams manage their own IAM roles. You can give a team the ability to create IAM roles, but attach a permission boundary requirement that prevents those roles from ever having more access than the team itself has.
+- **`Action`:** What API calls are being controlled. `s3:GetObject` means the `GetObject` API call to the S3 service. The format is always `service:APICall`. Wildcards work: `s3:Get*` matches all S3 Get actions.
+
+- **`Resource`:** Which specific AWS resources this applies to. Resources are identified by their ARN (Amazon Resource Name). Note that `arn:aws:s3:::my-bucket` refers to the bucket itself, and `arn:aws:s3:::my-bucket/*` refers to all objects inside it. You often need both for bucket operations.
+
+- **`Condition`:** Optional. Constraints that must be true for the statement to apply. We'll cover conditions in depth shortly.
+
+---
+
+### The Policy Evaluation Engine
+
+This is the most important section of this chapter. When AWS receives an API request, it evaluates all applicable policies to decide: **Allow** or **Deny**.
+
+The evaluation follows a specific order, and understanding it prevents hours of debugging.
+
+**The Evaluation Order:**
+
+1. **Explicit Deny** — If any policy contains an explicit `"Effect": "Deny"` that matches this request, it is denied. Full stop. An explicit deny cannot be overridden by any allow, anywhere.
+
+2. **Service Control Policies (SCPs)** — If you're using AWS Organizations, SCPs apply first. The request must be permitted by the applicable SCP. If no SCP permits it, it's denied.
+
+3. **Resource-based policies** — Some AWS resources have their own policies (S3 bucket policies, KMS key policies, SQS queue policies). These are evaluated in combination with identity-based policies.
+
+4. **Identity-based policies** — The policies attached to the IAM user, group, or role making the request.
+
+5. **Permission boundaries** — If a permission boundary is set on the IAM entity, the effective permissions are the intersection of the identity-based policy and the permission boundary. A permission boundary cannot grant more permissions — it can only restrict them.
+
+6. **Session policies** — When assuming a role or federating, a session policy can further restrict permissions.
+
+**The golden rules:**
+- An explicit **Deny always wins** — no allow can override it
+- By default, everything is **implicitly denied** — if no policy says Allow, the answer is Deny
+- An **Allow only works if nothing says Deny** and something says Allow
+
+**Visual representation of the logic:**
+
+```
+Request arrives
+      │
+      ▼
+Is there an explicit DENY in any applicable policy?
+      │ YES → DENY
+      │ NO
+      ▼
+Is there an SCP that allows this action?
+      │ NO → DENY
+      │ YES
+      ▼
+Is there a resource-based policy? If yes, does it allow this?
+      │ (For cross-account: must be allowed in BOTH identity AND resource policy)
+      │ (For same-account: either identity OR resource policy can allow)
+      ▼
+Is there an identity-based policy that ALLOWS this action?
+      │ NO → DENY
+      │ YES
+      ▼
+Is there a permission boundary? If yes, does it allow this?
+      │ NO → DENY
+      │ YES
+      ▼
+ALLOW
+```
+
+---
+
+### Condition Keys
+
+Condition keys let you make policies contextual — they only apply when certain conditions are true. This is what transforms a blunt "allow or deny" system into a precise, nuanced access control system.
+
+**Structure of a condition:**
+
+```json
+"Condition": {
+  "ConditionOperator": {
+    "ConditionKey": "ConditionValue"
+  }
+}
+```
+
+**Common condition operators:**
+
+| Operator | Meaning | Example |
+|----------|---------|---------|
+| `StringEquals` | Exact string match | Region must be exactly `us-east-1` |
+| `StringLike` | Pattern match with wildcards | Resource name matches `prod-*` |
+| `IpAddress` | IP address or CIDR range match | Request from `10.0.0.0/8` |
+| `Bool` | Boolean match | MFA must be `true` |
+| `DateGreaterThan` | Date comparison | Request must be after a date |
+| `ArnLike` | ARN pattern match | Caller ARN matches a pattern |
+| `Null` | Key existence check | Condition key must or must not exist |
+
+**Global condition keys** (available for all services):
+
+```json
+{
+  "Condition": {
+    "Bool": {
+      "aws:MultiFactorAuthPresent": "true"
+    }
+  }
+}
+```
+This requires MFA to have been used in the current session. Essential for sensitive actions.
+
+```json
+{
+  "Condition": {
+    "StringEquals": {
+      "aws:RequestedRegion": ["us-east-1", "eu-west-1"]
+    }
+  }
+}
+```
+Restricts actions to specific AWS regions.
+
+```json
+{
+  "Condition": {
+    "IpAddress": {
+      "aws:SourceIp": ["203.0.113.0/24", "198.51.100.0/24"]
+    }
+  }
+}
+```
+Restricts API access to specific IP ranges.
+
+**Service-specific condition keys:**
+
+EC2 has condition keys like `ec2:InstanceType`, `ec2:Region`, `ec2:Tenancy`:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowDeveloperPermissions",
       "Effect": "Allow",
+      "Action": "ec2:RunInstances",
+      "Resource": "arn:aws:ec2:us-east-1:*:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:InstanceType": ["t3.micro", "t3.small", "t3.medium"]
+        }
+      }
+    }
+  ]
+}
+```
+This allows EC2 instance launches only for specific instance types — useful for cost control combined with security.
+
+---
+
+### Service Control Policies (SCPs)
+
+SCPs are an AWS Organizations feature that set guardrails for entire AWS accounts or Organisational Units (OUs). Think of them as a maximum permission ceiling for an account.
+
+**Key insight:** SCPs don't grant permissions. They define the maximum permissions that any identity in the account can have. Even an account root user can't do something that an SCP denies.
+
+**Example SCP — prevent disabling CloudTrail:**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyCloudTrailDisable",
+      "Effect": "Deny",
       "Action": [
-        "s3:*",
-        "dynamodb:*",
-        "lambda:*",
-        "logs:*"
+        "cloudtrail:StopLogging",
+        "cloudtrail:DeleteTrail",
+        "cloudtrail:UpdateTrail"
       ],
       "Resource": "*"
     }
@@ -505,60 +518,27 @@ Permission boundaries are particularly useful in large organisations where teams
 }
 ```
 
-If this is set as a permission boundary for a role, then even if that role has an identity-based policy granting `ec2:*` or `iam:*`, those permissions are not effective. The role can only do what is permitted by *both* the identity policy *and* the permission boundary.
+Even if an IAM administrator in the child account tries to stop CloudTrail logging, this SCP blocks it. This is how central security teams enforce compliance controls across all accounts in an organisation.
 
-## Condition Keys: Making Policies Context-Aware
-
-Conditions allow you to write policies that only apply in specific circumstances. They make IAM enormously more powerful and precise.
-
-AWS provides global condition keys (available for all services) and service-specific condition keys (only available for specific services and actions).
-
-### Global Condition Keys
-
-**`aws:RequestedRegion`** — The AWS region where the request is being made.
-
-```json
-"Condition": {
-  "StringEquals": {
-    "aws:RequestedRegion": ["eu-west-1", "eu-central-1"]
-  }
-}
-```
-
-**`aws:MultiFactorAuthPresent`** — Whether the requestor authenticated with MFA.
-
-```json
-"Condition": {
-  "Bool": {
-    "aws:MultiFactorAuthPresent": "true"
-  }
-}
-```
-
-**`aws:PrincipalTag`** — Tags on the IAM identity making the request. This enables attribute-based access control (ABAC).
-
-```json
-"Condition": {
-  "StringEquals": {
-    "aws:PrincipalTag/Department": "Engineering"
-  }
-}
-```
-
-**`aws:ResourceTag`** — Tags on the resource being accessed. Combined with `aws:PrincipalTag`, this enables you to write policies like "an engineer can only manage EC2 instances tagged with their team name."
+**Example SCP — restrict to approved regions only:**
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ManageOwnTeamResources",
-      "Effect": "Allow",
-      "Action": "ec2:*",
+      "Sid": "DenyNonApprovedRegions",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:*",
+        "organizations:*",
+        "support:*",
+        "sts:*"
+      ],
       "Resource": "*",
       "Condition": {
-        "StringEquals": {
-          "aws:ResourceTag/Team": "${aws:PrincipalTag/Team}"
+        "StringNotEquals": {
+          "aws:RequestedRegion": ["us-east-1", "us-west-2", "eu-west-1"]
         }
       }
     }
@@ -566,196 +546,209 @@ AWS provides global condition keys (available for all services) and service-spec
 }
 ```
 
-This policy allows engineers to perform any EC2 action, but only on instances tagged with their own team's name. The `${aws:PrincipalTag/Team}` is a policy variable that resolves to the value of the `Team` tag on the calling identity at evaluation time.
+Note the use of `NotAction` — this means "deny everything *except* IAM, Organizations, Support, and STS calls from any region that isn't in our approved list." IAM, STS, and Organizations are global services that need to work from any region.
 
-**`aws:CurrentTime`** — The current time when the request is made. Useful for time-based access windows:
+---
 
-```json
-"Condition": {
-  "DateGreaterThan": {"aws:CurrentTime": "2024-01-01T00:00:00Z"},
-  "DateLessThan": {"aws:CurrentTime": "2024-12-31T23:59:59Z"}
-}
+### Permission Boundaries
+
+Permission boundaries are an advanced feature for delegating IAM administration safely. They let you give someone the ability to create IAM roles and policies, but limit what those roles and policies can do.
+
+**Analogy:** Your company gives a team lead the ability to issue building access cards to new team members, but the building has a rule: no access card can ever grant access to Floor 10 (where the servers are). The team lead can create cards with any combination of access, but Floor 10 is simply not on the menu.
+
+**How they work:**
+
+A permission boundary is itself an IAM policy. When attached to a user or role, the effective permissions become:
+
+```
+Effective Permissions = Identity Policy ∩ Permission Boundary
 ```
 
-### EC2-Specific Condition Keys
+In other words, you can only do what both the identity policy *and* the permission boundary allow. If the identity policy allows something the boundary doesn't, it's denied.
 
-**`ec2:InstanceType`** — The type of EC2 instance being launched. You can prevent engineers from spinning up expensive instances:
+**Example — developer self-service IAM with a boundary:**
+
+You want developers to create IAM roles for their Lambda functions, but you don't want them to create roles with more permissions than they themselves have.
+
+Step 1: Create a permission boundary policy:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "RestrictInstanceTypes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+Step 2: Allow developers to create roles, but only if they attach this boundary:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:PutRolePolicy",
+        "iam:AttachRolePolicy"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::123456789012:policy/DeveloperPermissionBoundary"
+        }
+      }
+    }
+  ]
+}
+```
+
+Now developers can create roles for their applications, but those roles can never do anything outside the boundary — even if a developer tries to create a role with admin access.
+
+---
+
+### How This Works in the Real World
+
+In large organisations with many AWS accounts, the typical architecture looks like:
+
+- **Organisation root:** SCP applied that denies disabling security tools (CloudTrail, GuardDuty, Config), restricts to approved regions, and prevents creation of root access keys
+- **Workload accounts:** Each team or application gets its own AWS account. SCPs from the organisation layer apply automatically
+- **CI/CD pipelines:** Use IAM roles with permission boundaries, so even a compromised pipeline can't escalate privileges
+- **Developers:** Get read-only access to production by default, with just-in-time elevation for debugging, protected by MFA conditions
+
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Forgetting that explicit deny always wins**
+
+A common frustration: "I added an Allow policy but it's still denied." Check for explicit Deny statements in SCPs, resource-based policies, or other attached policies.
+
+**Mistake 2: Confusing `NotAction` with `Deny`**
+
+`NotAction` does not mean "deny these actions." It means "this statement applies to everything *except* these actions." It's used with `Effect: Deny` to say "deny everything except X."
+
+**Mistake 3: Overly broad resource ARNs**
+
+```json
+"Resource": "*"  // Applies to all resources in AWS
+```
+
+Always be specific:
+```json
+"Resource": "arn:aws:s3:::my-specific-bucket/*"
+```
+
+**Mistake 4: Not testing policies before deploying**
+
+Use the IAM Policy Simulator: `https://policysim.aws.amazon.com/` — or the CLI:
+
+```bash
+aws iam simulate-principal-policy \
+  --policy-source-arn "arn:aws:iam::123456789012:role/MyRole" \
+  --action-names "s3:GetObject" \
+  --resource-arns "arn:aws:s3:::my-bucket/file.txt"
+```
+
+---
+
+### Practical Task — Chapter 2
+
+**Task: Create IAM policies with conditions — restrict EC2 actions to specific regions and instance types only**
+
+**Objective:** Create an IAM policy that allows EC2 instance management, but only in `us-east-1` and `eu-west-1`, and only for `t3.micro`, `t3.small`, and `t3.medium` instance types.
+
+**Step 1: Create the policy document**
+
+Save the following as `ec2-restricted-policy.json`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowEC2InApprovedRegions",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeTags"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": ["us-east-1", "eu-west-1"]
+        }
+      }
+    },
+    {
+      "Sid": "AllowEC2LaunchApprovedTypesOnly",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": "arn:aws:ec2:*:*:instance/*",
       "Condition": {
         "StringEquals": {
-          "ec2:InstanceType": [
-            "t3.micro",
-            "t3.small",
-            "t3.medium"
-          ]
-        }
-      }
-    }
-  ]
-}
-```
-
-**`ec2:Region`** — Similar to `aws:RequestedRegion` but EC2-specific. Use `aws:RequestedRegion` in most cases as it works across services.
-
-## Condition Operators
-
-AWS provides a rich set of operators for conditions:
-
-| Operator Type | Examples | Use Case |
-|---|---|---|
-| String | `StringEquals`, `StringLike`, `StringNotEquals` | Matching text values, with `*` and `?` wildcards in `StringLike` |
-| Numeric | `NumericEquals`, `NumericLessThan`, `NumericGreaterThan` | Comparing numbers |
-| Date | `DateEquals`, `DateLessThan`, `DateGreaterThan` | Time-based conditions |
-| Boolean | `Bool` | True/false conditions like MFA present |
-| IP Address | `IpAddress`, `NotIpAddress` | CIDR range matching |
-| ARN | `ArnEquals`, `ArnLike` | Matching resource ARNs with wildcards |
-| Null | `Null` | Checking whether a condition key exists |
-
-The `IfExists` suffix can be added to any operator (e.g., `StringEqualsIfExists`). Without `IfExists`, if the condition key is absent from the request, the condition evaluates to false. With `IfExists`, if the key is absent, the condition is ignored (treated as if it is not there).
-
-This distinction matters. Consider MFA:
-
-```json
-"Condition": {
-  "Bool": {
-    "aws:MultiFactorAuthPresent": "true"
-  }
-}
-```
-
-This works for console access but breaks for API calls made with IAM roles, because role-based sessions may not populate the `aws:MultiFactorAuthPresent` key at all. In that case, the condition evaluates to false and access is denied even if the role was legitimately assumed.
-
-The safer pattern for a deny statement is:
-
-```json
-"Condition": {
-  "BoolIfExists": {
-    "aws:MultiFactorAuthPresent": "false"
-  }
-}
-```
-
-This denies access *if* `aws:MultiFactorAuthPresent` exists AND is false. If the key does not exist (role-based API call), the condition is not met and the deny does not apply.
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Thinking "no explicit allow" and "explicit deny" are the same.** They are not. An explicit deny requires a statement with `"Effect": "Deny"`. The absence of an allow results in a default deny, which behaves the same in practice but has different implications — other policies could provide the allow. An explicit deny cannot be overridden by any allow.
-
-**Mistake 2: Forgetting that SCPs affect the root account user in member accounts.** Wait — actually, SCPs do NOT affect the management account. But they do affect all identities in member accounts, including account-level activities. This catches people by surprise.
-
-**Mistake 3: Using `"Resource": "*"` in deny statements without careful thought.** A deny on `"Resource": "*"` blocks everything including administrative tasks. Always test deny policies in a non-production account first.
-
-**Mistake 4: Not using the IAM Policy Simulator.** AWS provides a tool that lets you test IAM policies against simulated API calls before applying them. Always use it.
-
-```bash
-# Simulate an IAM policy evaluation
-aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::ACCOUNT:role/MyRole \
-  --action-names s3:GetObject \
-  --resource-arns arn:aws:s3:::my-bucket/my-file.txt
-```
-
-## How This Works in the Real World
-
-A mature cloud platform team might use all of these features together:
-
-- SCPs at the organisation level enforce region restrictions and prevent disabling of security services like GuardDuty and CloudTrail
-- Permission boundaries on developer-created roles ensure that developers can create automation roles but those roles can never exceed the developer's own permissions
-- Condition keys with resource tags implement team-based access control at scale — one policy can serve hundreds of teams because it dynamically evaluates tag values
-- The IAM Policy Simulator is part of the code review process for any infrastructure changes
-
-## Practical Task: Create IAM Policies With Conditions
-
-**Scenario:** Your company runs development and production workloads in AWS. You need to create an IAM policy that allows developers to manage EC2 instances, but only in the eu-west-1 region and only for t3.micro and t3.small instance types. They should never be able to terminate production instances (tagged `Environment: production`).
-
-**Step 1: Create the policy document.**
-
-Save this as `developer-ec2-policy.json`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowEC2InAllowedRegions",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeInstanceStatus",
-        "ec2:DescribeImages",
-        "ec2:DescribeSecurityGroups",
-        "ec2:DescribeSubnets",
-        "ec2:DescribeVpcs"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:RequestedRegion": "eu-west-1"
+          "ec2:InstanceType": ["t3.micro", "t3.small", "t3.medium"],
+          "aws:RequestedRegion": ["us-east-1", "eu-west-1"]
         }
       }
     },
     {
-      "Sid": "AllowLaunchApprovedInstanceTypes",
-      "Effect": "Allow",
-      "Action": "ec2:RunInstances",
-      "Resource": "arn:aws:ec2:eu-west-1:*:instance/*",
-      "Condition": {
-        "StringEquals": {
-          "ec2:InstanceType": ["t3.micro", "t3.small"],
-          "aws:RequestedRegion": "eu-west-1"
-        }
-      }
-    },
-    {
-      "Sid": "AllowLaunchSupportingResources",
+      "Sid": "AllowEC2LaunchSupportingResources",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": [
-        "arn:aws:ec2:eu-west-1:*:subnet/*",
-        "arn:aws:ec2:eu-west-1:*:network-interface/*",
-        "arn:aws:ec2:eu-west-1:*:security-group/*",
-        "arn:aws:ec2:eu-west-1:*:volume/*",
-        "arn:aws:ec2:eu-west-1::image/*"
-      ]
+        "arn:aws:ec2:*:*:subnet/*",
+        "arn:aws:ec2:*:*:network-interface/*",
+        "arn:aws:ec2:*:*:security-group/*",
+        "arn:aws:ec2:*:*:volume/*",
+        "arn:aws:ec2:*:*:key-pair/*",
+        "arn:aws:ec2:*::image/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": ["us-east-1", "eu-west-1"]
+        }
+      }
     },
     {
-      "Sid": "AllowStopStartInstances",
+      "Sid": "AllowEC2LifecycleApprovedRegions",
       "Effect": "Allow",
       "Action": [
         "ec2:StartInstances",
         "ec2:StopInstances",
+        "ec2:TerminateInstances",
         "ec2:RebootInstances"
       ],
-      "Resource": "arn:aws:ec2:eu-west-1:*:instance/*"
-    },
-    {
-      "Sid": "DenyTerminateProductionInstances",
-      "Effect": "Deny",
-      "Action": "ec2:TerminateInstances",
-      "Resource": "*",
+      "Resource": "arn:aws:ec2:*:*:instance/*",
       "Condition": {
         "StringEquals": {
-          "aws:ResourceTag/Environment": "production"
+          "aws:RequestedRegion": ["us-east-1", "eu-west-1"]
         }
       }
     },
     {
-      "Sid": "AllowTerminateNonProductionInstances",
-      "Effect": "Allow",
-      "Action": "ec2:TerminateInstances",
-      "Resource": "arn:aws:ec2:eu-west-1:*:instance/*",
+      "Sid": "DenyLargeInstanceTypes",
+      "Effect": "Deny",
+      "Action": "ec2:RunInstances",
+      "Resource": "arn:aws:ec2:*:*:instance/*",
       "Condition": {
         "StringNotEquals": {
-          "aws:ResourceTag/Environment": "production"
+          "ec2:InstanceType": ["t3.micro", "t3.small", "t3.medium"]
         }
       }
     }
@@ -763,196 +756,280 @@ Save this as `developer-ec2-policy.json`:
 }
 ```
 
-**Step 2: Create the policy in AWS.**
+**Step 2: Create the policy in AWS**
 
 ```bash
+# Create the policy
 aws iam create-policy \
-  --policy-name DeveloperEC2Policy \
-  --policy-document file://developer-ec2-policy.json \
-  --description "Allows EC2 management in eu-west-1 with instance type and environment restrictions"
+  --policy-name "EC2RestrictedAccessPolicy" \
+  --policy-document file://ec2-restricted-policy.json \
+  --description "Allows EC2 management only in approved regions with approved instance types"
+
+# Note the Policy ARN from the output
 ```
 
-**Step 3: Test with the IAM Policy Simulator.**
+**Step 3: Create a test role and attach the policy**
 
 ```bash
-# Test that a developer can launch a t3.micro (should succeed)
-aws iam simulate-custom-policy \
-  --policy-input-list file://developer-ec2-policy.json \
+# Create a trust policy for testing (allows your account to assume the role)
+cat > trust-policy.json << 'EOF'
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+# Create the role
+aws iam create-role \
+  --role-name "EC2RestrictedTestRole" \
+  --assume-role-policy-document file://trust-policy.json
+
+# Attach the policy to the role
+aws iam attach-role-policy \
+  --role-name "EC2RestrictedTestRole" \
+  --policy-arn "arn:aws:iam::YOUR_ACCOUNT_ID:policy/EC2RestrictedAccessPolicy"
+```
+
+**Step 4: Test the policy with the simulator**
+
+```bash
+# Test: should be ALLOWED (us-east-1, t3.micro)
+aws iam simulate-principal-policy \
+  --policy-source-arn "arn:aws:iam::YOUR_ACCOUNT_ID:role/EC2RestrictedTestRole" \
   --action-names "ec2:RunInstances" \
-  --resource-arns "arn:aws:ec2:eu-west-1:123456789012:instance/*" \
+  --resource-arns "arn:aws:ec2:us-east-1:YOUR_ACCOUNT_ID:instance/*" \
   --context-entries '[
-    {"ContextKeyName": "ec2:InstanceType", "ContextKeyValues": ["t3.micro"], "ContextKeyType": "string"},
-    {"ContextKeyName": "aws:RequestedRegion", "ContextKeyValues": ["eu-west-1"], "ContextKeyType": "string"}
+    {"ContextKeyName":"aws:RequestedRegion","ContextKeyValues":["us-east-1"],"ContextKeyType":"string"},
+    {"ContextKeyName":"ec2:InstanceType","ContextKeyValues":["t3.micro"],"ContextKeyType":"string"}
   ]'
 
-# Test that terminating a production instance is denied
-aws iam simulate-custom-policy \
-  --policy-input-list file://developer-ec2-policy.json \
-  --action-names "ec2:TerminateInstances" \
-  --resource-arns "arn:aws:ec2:eu-west-1:123456789012:instance/i-1234567890abcdef0" \
+# Test: should be DENIED (ap-southeast-1 - not in approved list)
+aws iam simulate-principal-policy \
+  --policy-source-arn "arn:aws:iam::YOUR_ACCOUNT_ID:role/EC2RestrictedTestRole" \
+  --action-names "ec2:RunInstances" \
+  --resource-arns "arn:aws:ec2:ap-southeast-1:YOUR_ACCOUNT_ID:instance/*" \
   --context-entries '[
-    {"ContextKeyName": "aws:ResourceTag/Environment", "ContextKeyValues": ["production"], "ContextKeyType": "string"}
+    {"ContextKeyName":"aws:RequestedRegion","ContextKeyValues":["ap-southeast-1"],"ContextKeyType":"string"},
+    {"ContextKeyName":"ec2:InstanceType","ContextKeyValues":["t3.micro"],"ContextKeyType":"string"}
+  ]'
+
+# Test: should be DENIED (c5.4xlarge - not in approved list)
+aws iam simulate-principal-policy \
+  --policy-source-arn "arn:aws:iam::YOUR_ACCOUNT_ID:role/EC2RestrictedTestRole" \
+  --action-names "ec2:RunInstances" \
+  --resource-arns "arn:aws:ec2:us-east-1:YOUR_ACCOUNT_ID:instance/*" \
+  --context-entries '[
+    {"ContextKeyName":"aws:RequestedRegion","ContextKeyValues":["us-east-1"],"ContextKeyType":"string"},
+    {"ContextKeyName":"ec2:InstanceType","ContextKeyValues":["c5.4xlarge"],"ContextKeyType":"string"}
   ]'
 ```
 
-Verify the first simulation returns `allowed` and the second returns `explicitDeny`.
-
-## Chapter Summary
-
-- AWS IAM evaluation follows a strict order: explicit deny wins over everything, then SCPs, then permission boundaries, then identity policies, then resource policies for cross-account access.
-- SCPs set the maximum permissions ceiling for an entire account. They restrict but never grant.
-- Permission boundaries set the maximum effective permissions for a specific IAM entity, separate from what policies grant.
-- Condition keys make policies context-aware. Use them to restrict access by region, instance type, resource tags, MFA status, IP address, and more.
-- The `IfExists` suffix on condition operators is important for correctness when condition keys might be absent.
-- Always test IAM policies with the IAM Policy Simulator before deploying to production.
+**What to document:** A table showing each test, the expected result, and the actual result.
 
 ---
 
-# Chapter 3: AWS Secrets Manager — Automatic Rotation, Cross-Account Access, Lambda Rotation Functions {#chapter-3}
+### Chapter 2 Summary
 
-## The Problem With Passwords in Config Files
+- IAM policies are JSON documents that define Allow or Deny for specific Actions on specific Resources under specific Conditions.
+- The evaluation order matters: Explicit Deny > SCPs > Resource policies > Identity policies > Permission boundaries > Session policies.
+- Condition keys make policies contextual: require MFA, restrict to regions, limit to IP ranges, constrain instance types.
+- SCPs are organisation-wide guardrails that define the maximum permissions for entire accounts.
+- Permission boundaries allow safe delegation of IAM administration without privilege escalation risk.
+- Always test your policies before attaching them — use the IAM Policy Simulator.
 
-Imagine you are a contractor and you need to water someone's houseplants while they are on holiday. The homeowner writes their address, alarm code, and door key location on a Post-it note and leaves it on their own front doorstep for you to find. You find the note, water the plants, and leave — but you do not throw the note away, and the homeowner forgets about it.
+---
 
-Six months later, the homeowner has changed their alarm code and moved, but that Post-it note with the old information is still somewhere. If the wrong person finds it, it could create problems even if the information is partially outdated.
+## Chapter 3: AWS Secrets Manager — Automatic Rotation, Cross-Account Access, Lambda Rotation Functions {#chapter-3}
 
-This is roughly what happens when database passwords and API keys live in configuration files, environment variables baked into container images, or committed to version control. The credentials exist in far more places than you think. When you need to change a password — because it has been compromised, because an employee left, or simply because it has not been rotated in a year — you need to find and update every place it exists.
+### What Is a Secret, and Why Can't We Just Use Environment Variables?
 
-AWS Secrets Manager solves this by becoming the single authoritative source for secrets. Applications never have the secret hardcoded — they call the Secrets Manager API at runtime to retrieve it.
+A secret is any piece of sensitive information your application needs at runtime: a database password, an API key, an OAuth client secret, an SSH private key. Your application needs these to function. The question is: where do you store them, and how do you get them into your application securely?
 
-## What AWS Secrets Manager Does
-
-AWS Secrets Manager is a managed service that:
-
-1. **Stores secrets** securely, encrypted at rest using AWS KMS
-2. **Provides a simple API** for applications to retrieve secrets at runtime
-3. **Automatically rotates** credentials on a schedule, updating them in the backing service and in Secrets Manager simultaneously
-4. **Audits access** through CloudTrail — every read, write, and rotation is logged
-5. **Controls access** through IAM and resource-based policies
-
-### The Application Pattern
-
-Instead of your database connection code looking like this:
+The most common antipattern is **hardcoding secrets in source code or environment variables**:
 
 ```python
-# Bad: hardcoded credentials
-connection = psycopg2.connect(
-    host="mydb.cluster.eu-west-1.rds.amazonaws.com",
-    database="production",
-    user="app_user",
-    password="supersecretpassword123"
-)
+# DON'T DO THIS
+DB_PASSWORD = "SuperSecretPassword123"
+API_KEY = "sk-abc123xyz"
 ```
 
-It looks like this:
+Or in a `.env` file committed to git:
+
+```
+# .env (NEVER COMMIT THIS)
+DATABASE_URL=postgresql://user:password@host/db
+STRIPE_KEY=sk_live_XXXXXXXXXXXX
+```
+
+The problems with this approach:
+
+1. **Source code leaks:** If your repository becomes public (accidentally or intentionally), all your secrets are exposed.
+2. **No rotation:** Hardcoded secrets can't be rotated without code changes and redeployments.
+3. **No audit trail:** You have no idea who accessed the secret, when, and from where.
+4. **No access control:** Anyone with code access can see all secrets, even secrets for systems they shouldn't have access to.
+5. **No versioning:** When a secret is compromised, rolling back to a previous version is complicated.
+
+**AWS Secrets Manager** solves all of these problems. It's a managed service for storing, managing, and automatically rotating secrets.
+
+---
+
+### How Secrets Manager Works
+
+Think of Secrets Manager like a secure vault with an API. Instead of putting your database password in an environment variable, your application asks Secrets Manager for it at runtime. Secrets Manager authenticates the request (using IAM), checks that the caller is authorised to access that specific secret, and returns the current value.
+
+**Key components:**
+
+- **Secret:** A named, versioned container for sensitive data. A secret can contain a string, a key-value JSON object, or binary data.
+- **Secret Version:** Each time a secret's value changes (including during rotation), a new version is created. Previous versions are kept temporarily.
+- **Secret Labels (AWSCURRENT, AWSPREVIOUS, AWSPENDING):** Labels that point to specific versions. `AWSCURRENT` is the active version. During rotation, `AWSPENDING` holds the new value until rotation is complete, then it becomes `AWSCURRENT`.
+- **Rotation:** An automated process that changes the secret's value on a schedule (daily, weekly, etc.) and updates the underlying resource (e.g., the database user password).
+
+---
+
+### Storing and Retrieving a Secret
+
+**Creating a secret (CLI):**
+
+```bash
+# Store a simple string secret
+aws secretsmanager create-secret \
+  --name "prod/myapp/database/password" \
+  --description "RDS master user password for production" \
+  --secret-string "InitialPassword123!"
+
+# Store a JSON secret (recommended — allows storing multiple values together)
+aws secretsmanager create-secret \
+  --name "prod/myapp/database" \
+  --description "RDS connection details" \
+  --secret-string '{
+    "username": "admin",
+    "password": "InitialPassword123!",
+    "host": "mydb.cluster-xxxx.us-east-1.rds.amazonaws.com",
+    "port": "5432",
+    "dbname": "myapp"
+  }'
+```
+
+**Retrieving a secret (CLI):**
+
+```bash
+# Get the current version of a secret
+aws secretsmanager get-secret-value \
+  --secret-id "prod/myapp/database" \
+  --query 'SecretString' \
+  --output text
+
+# Get a specific version by label
+aws secretsmanager get-secret-value \
+  --secret-id "prod/myapp/database" \
+  --version-stage AWSCURRENT
+```
+
+**Retrieving a secret in Python:**
 
 ```python
 import boto3
 import json
 
-def get_secret(secret_name):
-    """Retrieve a secret from AWS Secrets Manager."""
-    client = boto3.client('secretsmanager', region_name='eu-west-1')
+def get_database_credentials(secret_name: str, region: str = "us-east-1") -> dict:
+    """
+    Retrieve database credentials from AWS Secrets Manager.
+    Returns a dictionary with username, password, host, port, dbname.
+    """
+    # Create a Secrets Manager client
+    # boto3 automatically uses the IAM role of the current execution environment
+    # (Lambda role, EC2 instance profile, ECS task role, etc.)
+    client = boto3.client(
+        service_name='secretsmanager',
+        region_name=region
+    )
     
-    # GetSecretValue returns the current version of the secret
-    response = client.get_secret_value(SecretId=secret_name)
+    try:
+        # Request the current version of the secret
+        response = client.get_secret_value(SecretId=secret_name)
+    except Exception as e:
+        # Handle specific exceptions in production code
+        raise e
     
-    # Secrets can be stored as a JSON string
-    secret = json.loads(response['SecretString'])
-    return secret
+    # The secret value is in either SecretString (text) or SecretBinary (binary)
+    if 'SecretString' in response:
+        secret = response['SecretString']
+        # Parse the JSON string into a Python dictionary
+        return json.loads(secret)
+    else:
+        # Binary secrets are base64-encoded
+        import base64
+        return base64.b64decode(response['SecretBinary'])
 
-# Good: credentials retrieved from Secrets Manager
-secret = get_secret('production/myapp/database')
+# Usage in your application
+credentials = get_database_credentials("prod/myapp/database")
 connection = psycopg2.connect(
-    host=secret['host'],
-    database=secret['dbname'],
-    user=secret['username'],
-    password=secret['password']
+    host=credentials['host'],
+    port=credentials['port'],
+    database=credentials['dbname'],
+    user=credentials['username'],
+    password=credentials['password']
 )
 ```
 
-Now the actual password never appears in your code, your configuration files, your environment variables, or your container images. It lives only in Secrets Manager.
+The key insight here: your application code never contains a password. It contains the *name* of the secret. The actual password is fetched at runtime from Secrets Manager, using the IAM role's permissions.
 
-## Creating a Secret
+---
 
-### Through the Console
+### Automatic Rotation
 
-Navigate to AWS Secrets Manager, click "Store a new secret," choose "Credentials for Amazon RDS database," enter your database credentials, and follow the wizard.
+Rotation is the process of automatically changing a secret's value on a schedule. For database passwords, this means creating a new password, updating it in the database, storing the new password in Secrets Manager, and testing that applications using the secret still work.
 
-### Through the CLI
+**Why rotation matters:**
 
-```bash
-# Create a secret containing database credentials as JSON
-aws secretsmanager create-secret \
-  --name "production/myapp/database" \
-  --description "PostgreSQL credentials for production application" \
-  --secret-string '{
-    "username": "app_user",
-    "password": "initial-password-change-me",
-    "host": "mydb.cluster.eu-west-1.rds.amazonaws.com",
-    "port": "5432",
-    "dbname": "production"
-  }'
-```
+Even if a secret is never intentionally exposed, rotating it regularly means that if it *was* leaked (through logs, error messages, network captures), it has a limited useful life. A password that's rotated every 30 days is only useful to an attacker for up to 30 days.
 
-Every secret in Secrets Manager is identified by its name (`production/myapp/database`) and is automatically encrypted using the default KMS key (or a custom key you specify).
+**How rotation works in Secrets Manager:**
 
-## Automatic Rotation
+Rotation is handled by a **Lambda function**. Secrets Manager calls this function with a specific event at each step of the rotation process:
 
-This is where Secrets Manager earns its place. Manual credential rotation is error-prone, often delayed, and frequently skipped entirely. Secrets Manager automates the entire process.
+1. **`createSecret`:** The Lambda creates a new secret value (generates a new password).
+2. **`setSecret`:** The Lambda sets the new password in the target system (e.g., runs `ALTER USER` on the RDS database).
+3. **`testSecret`:** The Lambda verifies the new credentials work by attempting a connection.
+4. **`finishSecret`:** The Lambda (or Secrets Manager directly) marks the new version as `AWSCURRENT`.
 
-### How Rotation Works
+During steps 1–3, the old password (now `AWSPREVIOUS`) still works. Applications that cached the old password continue to function. Once step 4 completes, the new password is active.
 
-When you configure automatic rotation, Secrets Manager invokes a Lambda function on your specified schedule. That Lambda function is responsible for:
+**Setting up rotation for an RDS password:**
 
-1. Generating a new password
-2. Updating the password in the database (or other service)
-3. Testing that the new password works
-4. Updating the secret in Secrets Manager with the new password
-
-AWS provides pre-built Lambda rotation functions for RDS, Redshift, DocumentDB, and others. For other services, you write your own following a specific protocol.
-
-### The Four-Stage Rotation Protocol
-
-The rotation Lambda must handle four distinct lifecycle stages, which AWS calls via the `Step` field in the event:
-
-**Stage 1: `createSecret`**
-Generate a new password and store it as the "pending" version of the secret. The current secret is still active and untouched.
-
-**Stage 2: `setSecret`**
-Apply the new password to the actual service (e.g., execute `ALTER USER app_user PASSWORD 'new-password'` in the database). At this point, both the old and new passwords work.
-
-**Stage 3: `testSecret`**
-Connect to the service using the new (pending) password and verify it works. If this test fails, the rotation fails and the old password remains active.
-
-**Stage 4: `finishSecret`**
-Mark the new version of the secret as current and the old version as previous. Applications that retrieve the secret now get the new password.
-
-This four-stage process ensures that there is always a working credential available. If any stage fails, the process stops, the old credential remains active, and Secrets Manager sends a notification (if you configure CloudWatch alarms).
-
-### Setting Up Rotation for an RDS Database
+AWS provides pre-built rotation Lambda functions for common databases. For RDS PostgreSQL:
 
 ```bash
-# Enable automatic rotation using the AWS-provided rotation function
-# First, ensure the rotation Lambda for your RDS type exists
-# (AWS can create it for you through the console)
-
+# Enable automatic rotation on an existing secret
+# AWS will deploy a Lambda function automatically for supported database types
 aws secretsmanager rotate-secret \
-  --secret-id "production/myapp/database" \
-  --rotation-lambda-arn "arn:aws:lambda:eu-west-1:ACCOUNT:function:SecretsManagerRDSPostgreSQLRotationSingleUser" \
-  --rotation-rules '{"AutomaticallyAfterDays": 30}'
+  --secret-id "prod/myapp/database" \
+  --rotation-rules AutomaticallyAfterDays=30
+
+# For RDS-specific rotation, use the managed rotation feature
+aws secretsmanager rotate-secret \
+  --secret-id "prod/myapp/database" \
+  --rotate-immediately \
+  --rotation-lambda-arn "arn:aws:lambda:us-east-1:123456789012:function:SecretsManagerRDSPostgreSQLRotationSingleUser"
 ```
 
-The `AutomaticallyAfterDays` parameter tells Secrets Manager to rotate the secret every 30 days. After the first rotation is triggered, Secrets Manager manages all subsequent rotations automatically.
+**Writing a custom Lambda rotation function:**
 
-### Writing a Custom Rotation Lambda
-
-For services not covered by AWS-provided rotation functions, you write a custom Lambda. Here is the structure:
+For databases or systems not covered by AWS's built-in rotation functions, you write your own. Here's the structure:
 
 ```python
 import boto3
 import json
 import logging
+import psycopg2
 import string
 import secrets
 
@@ -960,550 +1037,512 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 def lambda_handler(event, context):
-    """Entry point for the Secrets Manager rotation Lambda."""
-    
-    # Extract the rotation parameters from the event
-    arn = event['SecretId']          # ARN of the secret being rotated
-    token = event['ClientRequestToken']  # Unique token for this rotation
-    step = event['Step']             # Which stage: createSecret, setSecret, testSecret, finishSecret
+    """
+    Main entry point for the rotation Lambda.
+    Secrets Manager calls this function with a specific step.
+    """
+    arn = event['SecretId']        # The ARN of the secret being rotated
+    token = event['ClientRequestToken']  # A unique token for this rotation attempt
+    step = event['Step']           # Which step: createSecret, setSecret, testSecret, finishSecret
     
     # Get a Secrets Manager client
-    client = boto3.client('secretsmanager')
+    service_client = boto3.client('secretsmanager')
     
-    # Get metadata about the secret to understand its current state
-    metadata = client.describe_secret(SecretId=arn)
+    # Verify the secret exists and the token is valid
+    metadata = service_client.describe_secret(SecretId=arn)
+    if not metadata['RotationEnabled']:
+        raise ValueError(f"Secret {arn} is not enabled for rotation")
     
-    # Verify this version is in the AWSPENDING state
-    # If it is already in AWSCURRENT, rotation is already done
-    versions = metadata.get('VersionIdsToStages', {})
+    versions = metadata['VersionIdsToStages']
     if token not in versions:
-        raise ValueError(f"Secret version {token} has no stage for secret {arn}")
+        raise ValueError(f"Secret version {token} has no stage for rotation")
     
-    # Route to the correct handler based on the step
+    # Route to the appropriate step handler
     if step == "createSecret":
-        create_secret(client, arn, token)
+        create_secret(service_client, arn, token)
     elif step == "setSecret":
-        set_secret(client, arn, token)
+        set_secret(service_client, arn, token)
     elif step == "testSecret":
-        test_secret(client, arn, token)
+        test_secret(service_client, arn, token)
     elif step == "finishSecret":
-        finish_secret(client, arn, token)
+        finish_secret(service_client, arn, token)
     else:
         raise ValueError(f"Invalid step: {step}")
 
 
-def create_secret(client, arn, token):
-    """Generate a new password and store it as the pending version."""
-    
-    # Check if AWSPENDING already exists (handles retries gracefully)
+def create_secret(service_client, arn, token):
+    """
+    Step 1: Create a new version of the secret with a new password.
+    The new version gets the AWSPENDING staging label.
+    """
+    # Check if there's already a pending version (rotation was interrupted)
     try:
-        client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING")
-        logger.info("Pending version already exists, skipping creation")
+        service_client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING", VersionId=token)
+        logger.info(f"createSecret: Pending secret already exists, skipping creation")
         return
-    except client.exceptions.ResourceNotFoundException:
-        pass
+    except service_client.exceptions.ResourceNotFoundException:
+        pass  # No pending version, continue with creation
     
-    # Get the current secret to preserve all fields except password
-    current = json.loads(
-        client.get_secret_value(SecretId=arn, VersionStage="AWSCURRENT")['SecretString']
+    # Get the current secret to use as a template
+    current_secret = json.loads(
+        service_client.get_secret_value(SecretId=arn, VersionStage="AWSCURRENT")['SecretString']
     )
     
-    # Generate a new secure password
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    # Generate a new strong password
+    # Use only characters that are safe for PostgreSQL
+    alphabet = string.ascii_letters + string.digits + "!#$%&*+-=?@^_"
     new_password = ''.join(secrets.choice(alphabet) for _ in range(32))
     
-    # Store the new password as the pending version
-    current['password'] = new_password
-    client.put_secret_value(
+    # Create the new secret value with the new password
+    new_secret = current_secret.copy()
+    new_secret['password'] = new_password
+    
+    # Store the new version as AWSPENDING
+    service_client.put_secret_value(
         SecretId=arn,
         ClientRequestToken=token,
-        SecretString=json.dumps(current),
+        SecretString=json.dumps(new_secret),
         VersionStages=['AWSPENDING']
     )
-    logger.info("Created new pending secret version")
+    logger.info(f"createSecret: Successfully created AWSPENDING version")
 
 
-def set_secret(client, arn, token):
-    """Apply the new password to the actual service."""
-    import psycopg2
-    
-    # Get the pending secret (new password)
+def set_secret(service_client, arn, token):
+    """
+    Step 2: Set the new password in the actual database.
+    The user's password in the database is updated to match the AWSPENDING secret.
+    """
+    # Get the AWSPENDING secret (new credentials)
     pending = json.loads(
-        client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING")['SecretString']
+        service_client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING", VersionId=token)['SecretString']
     )
     
-    # Get the current secret (old password) — use this to authenticate for the change
+    # Get the AWSCURRENT secret (old, still-working credentials)
     current = json.loads(
-        client.get_secret_value(SecretId=arn, VersionStage="AWSCURRENT")['SecretString']
+        service_client.get_secret_value(SecretId=arn, VersionStage="AWSCURRENT")['SecretString']
     )
     
-    # Connect using the current (old) credentials and update the password
+    # Connect to the database using the CURRENT (old) credentials
     conn = psycopg2.connect(
         host=current['host'],
+        port=current['port'],
         database=current['dbname'],
         user=current['username'],
         password=current['password']
     )
+    conn.autocommit = True
     
-    with conn.cursor() as cur:
-        # Update the password in PostgreSQL
-        cur.execute(
-            "ALTER USER %s PASSWORD %s",
-            (pending['username'], pending['password'])
-        )
-    conn.commit()
-    conn.close()
-    logger.info("Successfully updated password in database")
+    try:
+        with conn.cursor() as cur:
+            # Update the password in the database
+            # Use parameterised queries to prevent SQL injection
+            cur.execute(
+                "ALTER USER %s WITH PASSWORD %s",
+                (pending['username'], pending['password'])
+            )
+        logger.info(f"setSecret: Successfully updated password for user {pending['username']}")
+    finally:
+        conn.close()
 
 
-def test_secret(client, arn, token):
-    """Verify the new password works."""
-    import psycopg2
-    
+def test_secret(service_client, arn, token):
+    """
+    Step 3: Verify the new credentials actually work.
+    """
     pending = json.loads(
-        client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING")['SecretString']
+        service_client.get_secret_value(SecretId=arn, VersionStage="AWSPENDING", VersionId=token)['SecretString']
     )
     
-    # Attempt a connection with the new credentials
+    # Try to connect with the new credentials
     conn = psycopg2.connect(
         host=pending['host'],
+        port=pending['port'],
         database=pending['dbname'],
         user=pending['username'],
         password=pending['password']
     )
-    
-    # Run a simple query to confirm the connection works
-    with conn.cursor() as cur:
-        cur.execute("SELECT 1")
-    
     conn.close()
-    logger.info("Successfully tested new credentials")
+    logger.info(f"testSecret: New credentials verified successfully")
 
 
-def finish_secret(client, arn, token):
-    """Promote the pending version to current."""
-    
-    metadata = client.describe_secret(SecretId=arn)
+def finish_secret(service_client, arn, token):
+    """
+    Step 4: Mark the AWSPENDING version as AWSCURRENT.
+    The rotation is complete.
+    """
+    # Get the current version details
+    metadata = service_client.describe_secret(SecretId=arn)
     current_version = None
-    
-    # Find the current version ID
-    for version, stages in metadata.get('VersionIdsToStages', {}).items():
+    for version_id, stages in metadata['VersionIdsToStages'].items():
         if 'AWSCURRENT' in stages:
-            if version == token:
-                logger.info("Version already marked as current")
-                return
-            current_version = version
+            current_version = version_id
             break
     
-    # Move AWSCURRENT from the old version to the new one
-    client.update_secret_version_stage(
+    # Move the AWSPENDING label to AWSCURRENT
+    service_client.update_secret_version_stage(
         SecretId=arn,
         VersionStage='AWSCURRENT',
         MoveToVersionId=token,
         RemoveFromVersionId=current_version
     )
-    logger.info("Rotation complete — new version is now current")
+    logger.info(f"finishSecret: Rotation complete. New version is now AWSCURRENT")
 ```
 
-## Cross-Account Access to Secrets
+---
 
-Sometimes an application in Account A needs to access a secret stored in Account B. This requires two things:
+### Cross-Account Access
 
-1. A resource policy on the secret in Account B that allows Account A's role to access it
-2. An IAM policy on Account A's role that allows it to call `secretsmanager:GetSecretValue`
+Sometimes you need a secret in Account A to be accessible by a workload in Account B. This is cross-account secret access.
 
-**In Account B, update the secret's resource policy:**
+**How it works:**
 
-```bash
-aws secretsmanager put-resource-policy \
-  --secret-id "production/shared/api-key" \
-  --resource-policy '{
-    "Version": "2012-10-17",
-    "Statement": [
-      {
-        "Sid": "AllowCrossAccountAccess",
-        "Effect": "Allow",
-        "Principal": {
-          "AWS": "arn:aws:iam::ACCOUNT-A-ID:role/ApplicationRole"
-        },
-        "Action": [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
-        ],
-        "Resource": "*"
-      }
-    ]
-  }'
-```
+1. The secret in Account A has a **resource-based policy** allowing Account B to access it.
+2. The IAM role in Account B has an **identity-based policy** allowing it to call Secrets Manager in Account A.
+3. AWS evaluates both policies — both must allow the access.
 
-**In Account A, the IAM policy for ApplicationRole must include:**
+**Resource policy on the secret in Account A:**
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowAccessToCrossAccountSecret",
       "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::ACCOUNT_B_ID:role/WorkloadRole"
+      },
       "Action": [
         "secretsmanager:GetSecretValue",
         "secretsmanager:DescribeSecret"
       ],
-      "Resource": "arn:aws:secretsmanager:eu-west-1:ACCOUNT-B-ID:secret:production/shared/api-key-*"
+      "Resource": "*"
     }
   ]
 }
 ```
 
-Note the trailing `-*` in the resource ARN. Secrets Manager appends a random suffix to secret ARNs, so you need the wildcard to match regardless of what suffix was assigned.
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Not enabling rotation.** Creating a secret in Secrets Manager but leaving rotation disabled misses the main benefit. Always configure rotation from the start.
-
-**Mistake 2: Caching secrets without honouring rotation.** If your application caches the database password indefinitely in memory, it will break when rotation changes the password. Cache secrets with a TTL of a few minutes at most, and handle authentication errors by fetching the current secret and retrying.
-
-```python
-import time
-from functools import lru_cache
-
-# Simple time-based cache (5 minutes TTL)
-_secret_cache = {}
-_cache_expiry = {}
-
-def get_secret_cached(secret_name, ttl_seconds=300):
-    now = time.time()
-    if secret_name in _secret_cache and _cache_expiry.get(secret_name, 0) > now:
-        return _secret_cache[secret_name]
-    
-    secret = get_secret(secret_name)  # calls Secrets Manager API
-    _secret_cache[secret_name] = secret
-    _cache_expiry[secret_name] = now + ttl_seconds
-    return secret
+```bash
+# Attach the resource policy to the secret in Account A
+aws secretsmanager put-resource-policy \
+  --secret-id "prod/shared/api-key" \
+  --resource-policy file://cross-account-policy.json
 ```
 
-**Mistake 3: Not giving the application IAM permissions.** Your Lambda or EC2 instance needs an IAM policy allowing `secretsmanager:GetSecretValue` on the specific secret ARN. Without this, every attempt to retrieve the secret returns an access denied error.
+**IAM policy on the role in Account B:**
 
-## How This Works in the Real World
+```json
+{
+  "Effect": "Allow",
+  "Action": "secretsmanager:GetSecretValue",
+  "Resource": "arn:aws:secretsmanager:us-east-1:ACCOUNT_A_ID:secret:prod/shared/api-key-*"
+}
+```
 
-In a production microservices environment, Secrets Manager is typically used for:
+Note: If the secret is encrypted with a KMS key (which it is by default), Account B also needs permissions on that KMS key.
 
-- **Database credentials** for every service that connects to RDS, Aurora, or ElastiCache
-- **Third-party API keys** (Stripe, Twilio, SendGrid) stored once and retrieved by each service
-- **Service-to-service credentials** for internal APIs that require authentication
-- **JWT signing keys** rotated periodically to limit the window during which a stolen token remains valid
+---
 
-The rotation feature is especially valuable during security incidents. If you suspect a database password has been compromised, you can trigger an immediate rotation through the console or CLI — the password changes in both the database and Secrets Manager within seconds, and your applications seamlessly start using the new password on their next secret retrieval.
+### How This Works in the Real World
 
-## Practical Task: Set Up Secrets Manager With Lambda Rotation for RDS
+In professional environments, you'll see:
 
-**Scenario:** You have an RDS PostgreSQL database and a Lambda function that needs to connect to it. Set up Secrets Manager to store the database credentials and configure automatic rotation.
+- **All database passwords stored in Secrets Manager,** with 30-day automatic rotation. The application fetches the password fresh on each startup (or uses a caching layer that respects the rotation schedule).
+- **Secrets referenced by name (path),** not value, in application configuration. Paths follow a naming convention: `<env>/<service>/<resource>/<key>`, e.g., `prod/payments-service/postgres/password`.
+- **KMS CMKs used for encryption** (instead of the default AWS-managed key), so the organisation has full control over who can decrypt the secret.
+- **Access audited via CloudTrail** — every `GetSecretValue` call is logged with the caller identity, timestamp, and secret name.
 
-**Step 1: Create the RDS database (or use an existing one).**
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Caching secrets forever**
+
+If your application caches the database password in memory indefinitely, it will fail after a rotation because the cached password is now the old one. Cache secrets with a TTL of a few minutes, and always retry with a fresh secret fetch on authentication errors.
+
+**Mistake 2: Storing secrets with insufficient naming structure**
+
+Using a flat name like `MyDatabasePassword` makes it hard to manage at scale. Use hierarchical paths: `prod/myapp/rds/master-password`.
+
+**Mistake 3: Not tagging secrets**
+
+Tags help with cost allocation, access policies (using tag-based conditions), and compliance reporting. Always tag secrets with at minimum: environment, application, team, and owner.
+
+---
+
+### Practical Task — Chapter 3
+
+**Task: Set up AWS Secrets Manager with Lambda rotation for an RDS password — verify rotation works**
+
+**Step 1: Create an RDS PostgreSQL instance (if you don't have one)**
 
 ```bash
-# Create a PostgreSQL RDS instance (this takes a few minutes)
+# Create a parameter group
+aws rds create-db-parameter-group \
+  --db-parameter-group-name myapp-postgres \
+  --db-parameter-group-family postgres14 \
+  --description "Parameter group for myapp"
+
+# Create the RDS instance (use a free tier-eligible instance for this exercise)
 aws rds create-db-instance \
-  --db-instance-identifier my-postgres-db \
+  --db-instance-identifier myapp-postgres \
   --db-instance-class db.t3.micro \
   --engine postgres \
-  --master-username admin \
-  --master-user-password "TemporaryPassword123!" \
+  --engine-version 14.9 \
+  --master-username dbadmin \
+  --master-user-password "InitialPassword123!" \
+  --db-name myapp \
   --allocated-storage 20 \
-  --vpc-security-group-ids sg-XXXXXXXX \
-  --db-subnet-group-name my-subnet-group \
-  --backup-retention-period 0
+  --no-multi-az \
+  --publicly-accessible \
+  --backup-retention-period 1
 
-# Wait for it to be available
-aws rds wait db-instance-available \
-  --db-instance-identifier my-postgres-db
+# Wait for the instance to be available (takes a few minutes)
+aws rds wait db-instance-available --db-instance-identifier myapp-postgres
 
 # Get the endpoint
 aws rds describe-db-instances \
-  --db-instance-identifier my-postgres-db \
+  --db-instance-identifier myapp-postgres \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text
 ```
 
-**Step 2: Create an application user in the database.**
-
-```sql
--- Connect to the database as admin and create an app user
-CREATE USER app_user WITH PASSWORD 'AppPassword123!';
-GRANT CONNECT ON DATABASE postgres TO app_user;
-GRANT USAGE ON SCHEMA public TO app_user;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO app_user;
-```
-
-**Step 3: Store the credentials in Secrets Manager.**
+**Step 2: Create the secret in Secrets Manager**
 
 ```bash
-DB_ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier my-postgres-db \
+# Store the RDS credentials as a Secrets Manager secret
+# Secrets Manager uses a specific JSON format for RDS secrets
+aws secretsmanager create-secret \
+  --name "prod/myapp/rds/master" \
+  --description "RDS master credentials for myapp production database" \
+  --secret-string '{
+    "username": "dbadmin",
+    "password": "InitialPassword123!",
+    "host": "YOUR_RDS_ENDPOINT",
+    "port": "5432",
+    "dbname": "myapp",
+    "engine": "postgres"
+  }'
+```
+
+**Step 3: Enable managed rotation**
+
+For supported RDS engines, Secrets Manager can set up rotation automatically:
+
+```bash
+# Enable automatic rotation with managed rotation
+# This creates the Lambda function for you
+aws secretsmanager rotate-secret \
+  --secret-id "prod/myapp/rds/master" \
+  --rotation-rules AutomaticallyAfterDays=30 \
+  --rotate-immediately
+```
+
+If using the managed rotation, Secrets Manager creates and manages the Lambda function. Alternatively, use the Secrets Manager console to set up rotation — it walks you through the process graphically.
+
+**Step 4: Verify the rotation happened**
+
+```bash
+# Check the secret's version history
+aws secretsmanager list-secret-version-ids \
+  --secret-id "prod/myapp/rds/master" \
+  --output table
+
+# The output shows versions with their staging labels
+# You should see AWSCURRENT pointing to a new version after rotation
+
+# Get the current secret value to confirm the password changed
+aws secretsmanager get-secret-value \
+  --secret-id "prod/myapp/rds/master" \
+  --query 'SecretString' \
+  --output text | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Password: {d[\"password\"]}')"
+```
+
+**Step 5: Verify the new credentials work**
+
+```bash
+# Get the new password
+NEW_PASSWORD=$(aws secretsmanager get-secret-value \
+  --secret-id "prod/myapp/rds/master" \
+  --query 'SecretString' \
+  --output text | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['password'])")
+
+# Test connection with new password
+RDS_ENDPOINT=$(aws rds describe-db-instances \
+  --db-instance-identifier myapp-postgres \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text)
 
-aws secretsmanager create-secret \
-  --name "production/my-postgres-db/app-user" \
-  --description "Application user credentials for my-postgres-db" \
-  --secret-string "{
-    \"username\": \"app_user\",
-    \"password\": \"AppPassword123!\",
-    \"host\": \"${DB_ENDPOINT}\",
-    \"port\": \"5432\",
-    \"dbname\": \"postgres\"
-  }"
+psql -h $RDS_ENDPOINT -U dbadmin -d myapp -c "SELECT 1 AS rotation_verified;"
+# Enter the new password when prompted
 ```
 
-**Step 4: Set up automatic rotation using AWS's managed rotation function.**
-
-Through the AWS Console:
-1. Navigate to the secret you just created
-2. Click "Edit rotation"
-3. Enable automatic rotation
-4. Set the rotation schedule to 30 days
-5. Choose "Create a new Lambda function" for the rotation function
-6. Choose the "Amazon RDS database" rotation strategy
-7. Save
-
-Through the CLI (after the rotation Lambda has been created by AWS):
-
-```bash
-# Get the ARN of the rotation Lambda (AWS creates it with a predictable name)
-LAMBDA_ARN=$(aws lambda get-function \
-  --function-name SecretsManagerRDSPostgreSQLRotationSingleUser \
-  --query 'Configuration.FunctionArn' \
-  --output text)
-
-# Enable rotation
-aws secretsmanager rotate-secret \
-  --secret-id "production/my-postgres-db/app-user" \
-  --rotation-lambda-arn "$LAMBDA_ARN" \
-  --rotation-rules '{"AutomaticallyAfterDays": 30}'
-```
-
-**Step 5: Trigger an immediate rotation and verify.**
-
-```bash
-# Trigger rotation now
-aws secretsmanager rotate-secret \
-  --secret-id "production/my-postgres-db/app-user"
-
-# Check the rotation status
-aws secretsmanager describe-secret \
-  --secret-id "production/my-postgres-db/app-user" \
-  --query 'RotationEnabled'
-
-# Get the current secret to see the new password
-aws secretsmanager get-secret-value \
-  --secret-id "production/my-postgres-db/app-user" \
-  --query 'SecretString' \
-  --output text | python3 -m json.tool
-```
-
-**Step 6: Update your Lambda function to retrieve the secret.**
-
-Attach this IAM policy to your Lambda's execution role:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "secretsmanager:GetSecretValue",
-      "Resource": "arn:aws:secretsmanager:eu-west-1:ACCOUNT:secret:production/my-postgres-db/app-user-*"
-    }
-  ]
-}
-```
-
-And update the Lambda code to retrieve credentials dynamically (using the pattern shown earlier in this chapter).
-
-## Chapter Summary
-
-- Secrets Manager is the single authoritative source for credentials. Applications retrieve them at runtime through the API, never hardcode them.
-- Automatic rotation uses a four-stage Lambda protocol: create, set, test, finish. AWS provides built-in rotation functions for RDS and other services.
-- Cross-account secret access requires an allow in both the resource policy on the secret AND the identity policy of the consuming role.
-- Cache secrets with a short TTL and handle authentication failures gracefully by re-fetching and retrying.
-- Always give applications only `secretsmanager:GetSecretValue` on specific secret ARNs — not broad Secrets Manager permissions.
+**What to demonstrate:** Show the before and after secret values, confirm they're different, and confirm the database connection works with the new password.
 
 ---
 
-# Chapter 4: AWS Parameter Store — SecureString, Advanced Tier, Parameter Policies {#chapter-4}
+### Chapter 3 Summary
 
-## The Younger Sibling
+- Secrets Manager is a secure, managed store for sensitive values with API-driven access.
+- Applications should fetch secrets at runtime via the SDK, not read them from environment variables or files.
+- Automatic rotation uses a Lambda function that follows four steps: create, set, test, finish.
+- Cross-account access requires resource policies on the secret and identity policies on the calling role.
+- Always use a naming convention and tags for secrets — at scale, discoverability and governance depend on it.
 
-If AWS Secrets Manager is a professional-grade vault with automated rotation and full audit logging, AWS Systems Manager Parameter Store is a versatile utility shelf. It costs less (the standard tier is free), integrates deeply with other AWS services, and handles both sensitive secrets and non-sensitive configuration data in a unified system.
+---
 
-Think of the difference this way: Secrets Manager is purpose-built for credentials that need to rotate. Parameter Store is for the broader category of configuration that your applications need — database hostnames, feature flags, environment-specific settings, API endpoints, and yes, also secrets.
+## Chapter 4: AWS Parameter Store — SecureString, Advanced Tier, Parameter Policies {#chapter-4}
 
-## Parameter Types
+### Parameter Store vs Secrets Manager: When to Use Which
 
-Parameter Store supports three parameter types:
+AWS has two services for storing configuration values: Secrets Manager and Parameter Store. They overlap in capability but have different strengths.
 
-### String
+**Think of it this way:**
 
-Plain text. Use for non-sensitive configuration like hostnames, feature flag states, or version numbers.
+- **Parameter Store** is like a configuration database for your application. It stores settings, feature flags, database endpoints, API URLs — both sensitive and non-sensitive values. The standard tier is free.
+- **Secrets Manager** is specialised for secrets that need rotation, audit trails, and cross-account access. It costs money per secret per month.
+
+| Feature | Parameter Store | Secrets Manager |
+|---------|----------------|-----------------|
+| Cost | Free (standard tier) | $0.40/secret/month |
+| Secret rotation | Manual only | Automatic via Lambda |
+| Cross-account access | Limited | Full resource-based policies |
+| Max secret size | 8KB (standard), 8KB (advanced) | 65KB |
+| Secret organisation | Hierarchical paths | Flat with paths |
+| Automatic expiration | Yes (parameter policies) | Yes |
+| Best for | Config + non-rotating secrets | Rotating credentials |
+
+---
+
+### Parameter Types
+
+Parameter Store has three parameter types:
+
+**1. `String`** — Plain text. No encryption. For non-sensitive configuration values.
 
 ```bash
+# Store a plain string parameter
 aws ssm put-parameter \
-  --name "/myapp/production/database-host" \
-  --value "mydb.cluster.eu-west-1.rds.amazonaws.com" \
-  --type String
+  --name "/myapp/prod/database/host" \
+  --value "mydb.cluster-xxxx.us-east-1.rds.amazonaws.com" \
+  --type String \
+  --description "RDS cluster endpoint for production"
 ```
 
-### StringList
-
-A comma-separated list of values. Use for sets of allowed IP addresses, lists of feature flag names, or any list-type configuration.
+**2. `StringList`** — A comma-separated list of strings, stored as a single parameter.
 
 ```bash
 aws ssm put-parameter \
-  --name "/myapp/production/allowed-origins" \
-  --value "https://app.example.com,https://www.example.com,https://api.example.com" \
+  --name "/myapp/prod/allowed-regions" \
+  --value "us-east-1,eu-west-1,ap-southeast-1" \
   --type StringList
 ```
 
-### SecureString
-
-Encrypted with AWS KMS. Use for secrets: API keys, passwords, certificates. This is what makes Parameter Store a viable alternative to Secrets Manager for some use cases.
+**3. `SecureString`** — Encrypted using a KMS key. For sensitive values.
 
 ```bash
+# Store a sensitive value, encrypted with the default SSM KMS key
 aws ssm put-parameter \
-  --name "/myapp/production/database-password" \
-  --value "ActualSecretPassword123!" \
+  --name "/myapp/prod/database/password" \
+  --value "SuperSecretPassword123!" \
   --type SecureString \
-  --key-id "arn:aws:kms:eu-west-1:ACCOUNT:key/KEY-ID"
+  --description "RDS master password" \
+  --key-id "alias/aws/ssm"  # Default SSM managed key
+
+# Or use your own KMS Customer Managed Key (CMK) for better control
+aws ssm put-parameter \
+  --name "/myapp/prod/database/password" \
+  --value "SuperSecretPassword123!" \
+  --type SecureString \
+  --key-id "arn:aws:kms:us-east-1:123456789012:key/your-key-id"
 ```
 
-When you retrieve a `SecureString`, you must request decryption explicitly:
+When you retrieve a `SecureString` parameter, it comes back decrypted automatically (assuming your IAM role has both SSM and KMS permissions). The encryption/decryption is transparent.
+
+---
+
+### Hierarchical Organisation
+
+Parameter Store supports a path-based hierarchy using `/` as a separator. This is critical for managing parameters at scale.
+
+```
+/myapp/
+  prod/
+    database/
+      host
+      port
+      name
+      password       (SecureString)
+  staging/
+    database/
+      host
+      port
+      name
+      password       (SecureString)
+  feature-flags/
+    dark-mode-enabled
+    new-checkout-flow
+```
+
+**Benefits of hierarchical organisation:**
+
+1. **Bulk retrieval by path:** You can retrieve all parameters under a path in one API call.
+2. **IAM scoping:** You can grant access to `/myapp/prod/*` without granting access to `/myapp/staging/*`.
+3. **Organisation:** Parameters are logically grouped and self-documenting.
 
 ```bash
-# Without --with-decryption, you get the encrypted value back
+# Retrieve ALL parameters under a path at once
+aws ssm get-parameters-by-path \
+  --path "/myapp/prod/database" \
+  --with-decryption \
+  --recursive \
+  --query 'Parameters[*].[Name,Value]' \
+  --output table
+
+# Retrieve a specific parameter
 aws ssm get-parameter \
-  --name "/myapp/production/database-password" \
+  --name "/myapp/prod/database/password" \
   --with-decryption \
   --query 'Parameter.Value' \
   --output text
 ```
 
-In application code:
+---
 
-```python
-import boto3
+### Standard vs Advanced Tier
 
-def get_parameter(name, with_decryption=False):
-    """Retrieve a parameter from SSM Parameter Store."""
-    client = boto3.client('ssm', region_name='eu-west-1')
-    response = client.get_parameter(
-        Name=name,
-        WithDecryption=with_decryption
-    )
-    return response['Parameter']['Value']
+**Standard tier** (free):
+- Up to 10,000 parameters per account per region
+- Maximum parameter value size: 4KB
+- No parameter policies
 
-# Retrieve a plain string parameter
-db_host = get_parameter('/myapp/production/database-host')
+**Advanced tier** ($0.05 per advanced parameter per month):
+- Up to 100,000 parameters per account per region
+- Maximum parameter value size: 8KB
+- Supports **parameter policies** (expiration, notification, no-change alerts)
 
-# Retrieve and decrypt a SecureString
-db_password = get_parameter('/myapp/production/database-password', with_decryption=True)
-```
-
-## Parameter Naming and Hierarchy
-
-One of Parameter Store's best features is hierarchical parameter names. By using forward slashes to create a path-like structure, you can:
-
-- Retrieve all parameters for a specific environment in one API call
-- Apply IAM policies at the path level
-- Organise parameters logically by application, environment, and component
-
-```
-/myapp/production/database/host
-/myapp/production/database/port
-/myapp/production/database/name
-/myapp/production/database/username
-/myapp/production/database/password    <- SecureString
-/myapp/production/api/stripe-key       <- SecureString
-/myapp/production/api/sendgrid-key     <- SecureString
-/myapp/staging/database/host
-/myapp/staging/database/password       <- SecureString
-```
-
-Retrieving all production parameters for your app:
-
-```bash
-aws ssm get-parameters-by-path \
-  --path "/myapp/production/" \
-  --recursive \
-  --with-decryption \
-  --query 'Parameters[*].{Name:Name,Value:Value}' \
-  --output table
-```
-
-Scoping an IAM policy to a specific path:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ssm:GetParameter",
-        "ssm:GetParameters",
-        "ssm:GetParametersByPath"
-      ],
-      "Resource": "arn:aws:ssm:eu-west-1:ACCOUNT:parameter/myapp/production/*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": "kms:Decrypt",
-      "Resource": "arn:aws:kms:eu-west-1:ACCOUNT:key/KEY-ID"
-    }
-  ]
-}
-```
-
-This allows the application to access all parameters under `/myapp/production/` but nothing else.
-
-## Standard vs Advanced Tier
-
-### Standard Tier
-
-- **Free**
-- Parameters up to 4KB in size
-- 10,000 parameters per account per region
-- No parameter policies (expiration, notifications, no-change-required)
-- Sufficient for most use cases
-
-### Advanced Tier
-
-- **$0.05 per advanced parameter per month**
-- Parameters up to 8KB in size
-- Unlimited parameters
-- **Parameter policies** — this is the key differentiator
-
-To create an advanced parameter:
+To convert a parameter to advanced tier:
 
 ```bash
 aws ssm put-parameter \
-  --name "/myapp/production/large-config" \
-  --value "$(cat large-config.json)" \
-  --type String \
-  --tier Advanced
+  --name "/myapp/prod/database/password" \
+  --value "NewPassword123!" \
+  --type SecureString \
+  --tier Advanced \
+  --overwrite
 ```
 
-## Parameter Policies (Advanced Tier Only)
+---
 
-Parameter policies let you attach lifecycle rules to parameters. There are three types:
+### Parameter Policies
 
-### Expiration Policy
+Parameter policies are attached to advanced tier parameters to automate lifecycle management. There are three policy types:
 
-Automatically deletes a parameter after a specified time. Useful for temporary credentials or short-lived tokens.
+**1. Expiration Policy** — Automatically deletes a parameter after a specified date.
 
 ```bash
 aws ssm put-parameter \
-  --name "/temp/access-token" \
-  --value "eyJhbGciOiJSUzI1NiJ9..." \
+  --name "/myapp/temp/migration-token" \
+  --value "temp-token-xyz123" \
   --type SecureString \
   --tier Advanced \
   --policies '[
@@ -1511,20 +1550,20 @@ aws ssm put-parameter \
       "Type": "Expiration",
       "Version": "1.0",
       "Attributes": {
-        "Timestamp": "2024-12-31T23:59:59.000Z"
+        "Timestamp": "2024-12-31T00:00:00.000Z"
       }
     }
   ]'
 ```
 
-### ExpirationNotification Policy
+This is useful for temporary credentials, migration tokens, or time-limited access keys.
 
-Sends an Amazon EventBridge event before a parameter expires, giving you time to rotate or renew it before applications break.
+**2. ExpirationNotification Policy** — Sends an Amazon EventBridge event before a parameter expires.
 
 ```bash
 aws ssm put-parameter \
-  --name "/myapp/production/ssl-certificate" \
-  --value "$(cat certificate.pem)" \
+  --name "/myapp/prod/api-key" \
+  --value "key-value-here" \
   --type SecureString \
   --tier Advanced \
   --policies '[
@@ -1532,23 +1571,21 @@ aws ssm put-parameter \
       "Type": "ExpirationNotification",
       "Version": "1.0",
       "Attributes": {
-        "Before": "30",
+        "Before": "15",
         "Unit": "Days"
       }
     }
   ]'
 ```
 
-This sends a notification 30 days before the parameter expires, triggering whatever automation you have wired to EventBridge.
+This fires an EventBridge event 15 days before the parameter's expiration date. You can attach a Lambda function to that event to trigger rotation or send a Slack alert.
 
-### NoChangeNotification Policy
-
-Sends a notification if a parameter has not been updated within a specified period. Use this to enforce rotation schedules — if a secret has not been rotated in 90 days, you get an alert.
+**3. NoChangeNotification Policy** — Fires an EventBridge event if a parameter hasn't been updated in a specified time period.
 
 ```bash
 aws ssm put-parameter \
-  --name "/myapp/production/api-key" \
-  --value "sk-..." \
+  --name "/myapp/prod/certificate" \
+  --value "cert-value-here" \
   --type SecureString \
   --tier Advanced \
   --policies '[
@@ -1563,1167 +1600,959 @@ aws ssm put-parameter \
   ]'
 ```
 
-You can combine multiple policies on a single parameter:
-
-```bash
-# Set both expiration and pre-expiration notification
-aws ssm put-parameter \
-  --name "/myapp/production/temporary-token" \
-  --value "token-value" \
-  --type SecureString \
-  --tier Advanced \
-  --policies '[
-    {
-      "Type": "Expiration",
-      "Version": "1.0",
-      "Attributes": {
-        "Timestamp": "2024-06-30T00:00:00.000Z"
-      }
-    },
-    {
-      "Type": "ExpirationNotification",
-      "Version": "1.0",
-      "Attributes": {
-        "Before": "7",
-        "Unit": "Days"
-      }
-    }
-  ]'
-```
-
-## Parameter Store vs Secrets Manager: When to Use Which
-
-| Feature | Parameter Store | Secrets Manager |
-|---|---|---|
-| Cost | Free (standard tier) | $0.40/secret/month |
-| Automatic rotation | No (manual) | Yes (built-in) |
-| Parameter policies | Advanced tier only | N/A |
-| Cross-service use | Broad AWS integration | Secrets-focused |
-| Max value size | 8KB | 64KB |
-| Versioning | Yes | Yes |
-| Audit logging | CloudTrail only | CloudTrail + native |
-| Use case | Config + secrets | Credentials requiring rotation |
-
-**Use Secrets Manager for:** database passwords, API keys for external services, anything that needs automatic rotation.
-
-**Use Parameter Store for:** application configuration (hostnames, ports, feature flags), certificates stored as strings, parameters that need expiration policies, and cases where cost is a significant concern.
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Storing secrets as String type instead of SecureString.** If it is sensitive, it must be SecureString. String parameters are stored and transmitted in plaintext.
-
-**Mistake 2: Forgetting to grant KMS decrypt permissions.** Your application's IAM role needs both `ssm:GetParameter` and `kms:Decrypt`. The KMS permission is separate and easy to miss.
-
-**Mistake 3: Using the same KMS key for everything.** Creating separate KMS keys for different applications or environments means that a compromise of one application's key does not affect others.
-
-**Mistake 4: Hardcoding the parameter name in application code.** The parameter name should itself be configurable (via an environment variable or manifest), so you can deploy the same application code to different environments and it picks up different configuration.
-
-## How This Works in the Real World
-
-ECS task definitions can reference Parameter Store SecureStrings directly as environment variables — AWS injects the decrypted value at container startup without your application needing any special SDK code:
-
-```json
-{
-  "containerDefinitions": [
-    {
-      "name": "myapp",
-      "image": "myapp:latest",
-      "secrets": [
-        {
-          "name": "DATABASE_PASSWORD",
-          "valueFrom": "/myapp/production/database/password"
-        },
-        {
-          "name": "STRIPE_API_KEY",
-          "valueFrom": "/myapp/production/api/stripe-key"
-        }
-      ],
-      "environment": [
-        {
-          "name": "DATABASE_HOST",
-          "value": "mydb.cluster.eu-west-1.rds.amazonaws.com"
-        }
-      ]
-    }
-  ]
-}
-```
-
-The `secrets` block (for SecureString) and `environment` block (for plain values) are both visible here. AWS handles the Secrets Manager / Parameter Store API call and KMS decryption before the container starts.
-
-## Chapter Summary
-
-- Parameter Store stores three types: String (plain), StringList (comma-separated), and SecureString (KMS-encrypted).
-- Use hierarchical naming (paths with `/`) to organise parameters and apply IAM policies at the path level.
-- Advanced tier unlocks parameter policies: Expiration (auto-delete), ExpirationNotification (alert before expiry), and NoChangeNotification (alert if not updated).
-- Choose Secrets Manager for credentials requiring automated rotation; use Parameter Store for general configuration and cost-sensitive scenarios.
-- Always grant both `ssm:GetParameter` and `kms:Decrypt` permissions. The KMS permission is separate and frequently forgotten.
+If this parameter hasn't been updated in 90 days, an event fires. This is useful for parameters that should be rotated regularly but don't have automatic rotation.
 
 ---
 
-# Chapter 5: HashiCorp Vault — Architecture, Storage Backends, Auth Methods, Secret Engines {#chapter-5}
+### Retrieving Parameters in Application Code
 
-## Beyond AWS-Native
-
-The tools in the previous two chapters are excellent, but they have a fundamental constraint: they are AWS-specific. If your organisation runs workloads in multiple clouds, on-premises, or in hybrid environments, you need a secrets management solution that is not tied to any single cloud provider.
-
-HashiCorp Vault is the most widely adopted open-source secrets management solution. It runs anywhere — Kubernetes, VMs, bare metal, any cloud — and provides a unified interface for storing, retrieving, generating, and auditing secrets regardless of where your infrastructure lives.
-
-## The Core Concepts
-
-Think of Vault like a highly secure bank. The bank has:
-
-- **A vault door (unsealing)** that must be opened before anyone can access anything
-- **Safety deposit boxes (secret engines)** where different types of valuables are stored
-- **ID verification (auth methods)** that check who you are before you enter
-- **Access records (audit devices)** that log every time someone enters and what they access
-- **Safety rules (policies)** that determine which deposit boxes each person can access
-
-Let us explore each of these concepts.
-
-## Vault Architecture
-
-### The Vault Server
-
-Vault is a single binary that runs as a server. It exposes an HTTP API (and a CLI that wraps that API) and maintains all state in a configured storage backend.
-
-```
-┌────────────────────────────────────────────────────────┐
-│                     Vault Server                        │
-│                                                         │
-│  ┌─────────────────┐    ┌──────────────────────────┐   │
-│  │   Auth Methods  │    │     Secret Engines        │   │
-│  │  - AWS          │    │  - KV (Key-Value)         │   │
-│  │  - Kubernetes   │    │  - Database               │   │
-│  │  - GitHub       │    │  - AWS                    │   │
-│  │  - AppRole      │    │  - PKI                    │   │
-│  │  - Token        │    │  - SSH                    │   │
-│  └────────┬────────┘    └────────────┬─────────────┘   │
-│           │                          │                   │
-│           └────────────┬─────────────┘                   │
-│                        │                                 │
-│              ┌─────────▼──────────┐                     │
-│              │    Vault Core      │                     │
-│              │  (Policies, Audit) │                     │
-│              └─────────┬──────────┘                     │
-│                        │                                 │
-│              ┌─────────▼──────────┐                     │
-│              │  Storage Backend   │                     │
-│              │  (Raft/Consul/S3)  │                     │
-│              └────────────────────┘                     │
-└────────────────────────────────────────────────────────┘
-```
-
-### Sealing and Unsealing
-
-When Vault starts, it is **sealed**. In the sealed state, Vault knows where its storage backend is, but it cannot read or write any data because the encryption key is not in memory.
-
-To **unseal** Vault, you provide one or more unseal keys. By default, Vault uses Shamir's Secret Sharing to split the encryption key into multiple shares. You configure how many shares (n) and how many are required to unseal (k, where k < n). For example, you might create 5 shares and require 3 to unseal. This means three different trusted people must cooperate to unseal Vault — no single person can do it alone.
-
-```bash
-# Initialize Vault - generates the unseal keys and root token
-vault operator init \
-  --key-shares=5 \
-  --key-threshold=3
-
-# Output:
-# Unseal Key 1: AbCdEfGhIjKlMnOpQrStUvWxYz...
-# Unseal Key 2: BcDeFgHiJkLmNoPqRsTuVwXyZa...
-# Unseal Key 3: CdEfGhIjKlMnOpQrStUvWxYzAb...
-# Unseal Key 4: DeFgHiJkLmNoPqRsTuVwXyZaBc...
-# Unseal Key 5: EfGhIjKlMnOpQrStUvWxYzAbCd...
-# 
-# Initial Root Token: hvs.CAESIJ...
-#
-# IMPORTANT: Store these keys securely. They cannot be retrieved later.
-
-# Unseal using 3 of the 5 keys
-vault operator unseal AbCdEfGhIjKlMnOpQrStUvWxYz...
-vault operator unseal BcDeFgHiJkLmNoPqRsTuVwXyZa...
-vault operator unseal CdEfGhIjKlMnOpQrStUvWxYzAb...
-```
-
-In production, Vault's auto-unseal feature delegates unsealing to an external KMS (AWS KMS, GCP KMS, Azure Key Vault). This allows Vault to restart without human intervention while maintaining the security properties that matter.
-
-```hcl
-# vault.hcl - configure auto-unseal with AWS KMS
-seal "awskms" {
-  region     = "eu-west-1"
-  kms_key_id = "arn:aws:kms:eu-west-1:ACCOUNT:key/KEY-ID"
-}
-```
-
-## Storage Backends
-
-The storage backend is where Vault persists all its data (secrets, policies, auth configuration, audit logs). The backend stores data in encrypted form — Vault encrypts everything before writing and decrypts after reading.
-
-### Integrated Storage (Raft)
-
-The modern default. Vault ships with a built-in distributed consensus algorithm (Raft) that provides high availability without any external dependencies. All Vault data is stored on the Vault nodes themselves, replicated across the cluster.
-
-```hcl
-# vault.hcl - Raft storage configuration
-storage "raft" {
-  path    = "/opt/vault/data"
-  node_id = "vault-node-1"
-  
-  retry_join {
-    leader_api_addr = "https://vault-node-2:8200"
-  }
-  
-  retry_join {
-    leader_api_addr = "https://vault-node-3:8200"
-  }
-}
-```
-
-### Consul
-
-HashiCorp's distributed key-value store. Popular when you already run Consul for service discovery. Provides HA through Consul's Raft implementation.
-
-```hcl
-storage "consul" {
-  address = "consul.service.consul:8500"
-  path    = "vault/"
-  token   = "consul-token-with-vault-policy"
-}
-```
-
-### Amazon S3 (Non-HA)
-
-Simple and cheap for non-HA deployments. Does not support leader election, so you can only run a single Vault node with S3 storage.
-
-```hcl
-storage "s3" {
-  region = "eu-west-1"
-  bucket = "my-vault-storage"
-}
-```
-
-For production, always use Raft or Consul — they provide high availability. S3 is fine for development environments.
-
-## Auth Methods
-
-Auth methods are how clients prove their identity to Vault. Vault supports dozens of auth methods; here are the most commonly used.
-
-### Token Authentication
-
-The most basic method. Every other auth method ultimately issues a Vault token. Tokens have policies attached, time-to-live (TTL) settings, and usage limits.
-
-```bash
-# Log in with the root token (only used for initial setup)
-vault login hvs.CAESIJ...
-
-# Create a new token with specific policies and TTL
-vault token create \
-  --policy="read-production-secrets" \
-  --ttl=1h \
-  --use-limit=10
-
-# Lookup a token
-vault token lookup hvs.AbCdEf...
-
-# Revoke a token
-vault token revoke hvs.AbCdEf...
-```
-
-### AppRole Authentication
-
-Designed for machine authentication. An AppRole has a Role ID (semi-public identifier) and a Secret ID (private, short-lived credential). The application presents both to receive a Vault token.
-
-This separation is clever: you can store the Role ID in your application's configuration (it is not sensitive) and deliver the Secret ID through a secure channel (CI/CD pipeline, init container) at runtime. Neither alone is sufficient.
-
-```bash
-# Enable AppRole auth method
-vault auth enable approle
-
-# Create a role
-vault write auth/approle/role/myapp \
-  token_policies="myapp-policy" \
-  token_ttl=1h \
-  token_max_ttl=4h \
-  secret_id_ttl=10m \
-  secret_id_num_uses=1
-
-# Get the Role ID (non-sensitive, can be baked into config)
-vault read auth/approle/role/myapp/role-id
-
-# Generate a Secret ID (sensitive, deliver securely at runtime)
-vault write -f auth/approle/role/myapp/secret-id
-
-# Authenticate using both
-vault write auth/approle/login \
-  role_id="<ROLE-ID>" \
-  secret_id="<SECRET-ID>"
-```
-
-### AWS Authentication
-
-Applications running on AWS (EC2, Lambda, ECS, EKS) can authenticate to Vault using their AWS identity — no static secrets required. Vault verifies the identity using the AWS API.
-
-```bash
-# Enable AWS auth
-vault auth enable aws
-
-# Configure AWS credentials for Vault to verify requests
-vault write auth/aws/config/client \
-  access_key="AKID..." \
-  secret_key="..."
-
-# Create a role that maps AWS roles to Vault policies
-vault write auth/aws/role/myapp-role \
-  auth_type=iam \
-  bound_iam_principal_arn="arn:aws:iam::ACCOUNT:role/MyAppRole" \
-  policies="myapp-policy" \
-  ttl=1h
-```
-
-With this configured, a Lambda function running with the `MyAppRole` IAM role can authenticate to Vault without any static Vault credentials:
+**Python example — loading all parameters for an application:**
 
 ```python
 import boto3
-import hvac
 import json
+from functools import lru_cache
 
-def get_vault_client():
-    """Authenticate to Vault using the current EC2/Lambda IAM role."""
+class AppConfig:
+    """
+    Configuration manager that loads all parameters from SSM Parameter Store
+    under a specific path prefix.
+    """
     
-    # Get the AWS credentials from the instance metadata
-    session = boto3.session.Session()
-    credentials = session.get_credentials().get_frozen_credentials()
+    def __init__(self, app_name: str, environment: str, region: str = "us-east-1"):
+        self.path_prefix = f"/{app_name}/{environment}"
+        self.ssm = boto3.client('ssm', region_name=region)
+        self._config = {}
+        self._load()
     
-    # Authenticate to Vault using IAM
-    client = hvac.Client(url='https://vault.internal:8200')
-    client.auth.aws.iam_login(
-        access_key=credentials.access_key,
-        secret_key=credentials.secret_key,
-        session_token=credentials.token,
-        role='myapp-role'
-    )
+    def _load(self):
+        """Load all parameters under the app's path prefix."""
+        paginator = self.ssm.get_paginator('get_parameters_by_path')
+        
+        for page in paginator.paginate(
+            Path=self.path_prefix,
+            Recursive=True,          # Include all sub-paths
+            WithDecryption=True      # Decrypt SecureString parameters
+        ):
+            for param in page['Parameters']:
+                # Convert the SSM path to a flat key
+                # /myapp/prod/database/host -> database_host
+                key = param['Name']\
+                    .replace(self.path_prefix + '/', '')\
+                    .replace('/', '_')
+                self._config[key] = param['Value']
     
-    return client
+    def get(self, key: str, default=None):
+        """Get a configuration value by key."""
+        return self._config.get(key, default)
+    
+    def get_all(self) -> dict:
+        """Get all configuration values."""
+        return self._config.copy()
+
+
+# Usage
+config = AppConfig(app_name="myapp", environment="prod")
+
+db_host = config.get("database_host")
+db_password = config.get("database_password")
+feature_dark_mode = config.get("feature-flags_dark-mode-enabled", "false")
 ```
-
-### Kubernetes Authentication
-
-For applications running in Kubernetes, Vault can verify the Kubernetes service account token (a JWT) against the Kubernetes API server.
-
-```bash
-# Enable Kubernetes auth
-vault auth enable kubernetes
-
-# Configure it with the Kubernetes API endpoint and CA certificate
-vault write auth/kubernetes/config \
-  kubernetes_host="https://kubernetes.default.svc:443" \
-  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-
-# Create a role mapping a Kubernetes service account to Vault policies
-vault write auth/kubernetes/role/myapp \
-  bound_service_account_names="myapp" \
-  bound_service_account_namespaces="production" \
-  policies="myapp-policy" \
-  ttl=1h
-```
-
-## Secret Engines
-
-Secret engines are the components that store, generate, or encrypt data. Vault ships with many built-in engines.
-
-### KV (Key-Value) Engine
-
-The simplest engine. You store key-value pairs and retrieve them. Version 2 adds versioning, so you can retrieve old values and see the history of changes.
-
-```bash
-# Enable KV v2 at a path
-vault secrets enable -path=secret kv-v2
-
-# Write a secret
-vault kv put secret/myapp/config \
-  database_url="postgres://host:5432/mydb" \
-  api_key="sk-1234567890"
-
-# Read the secret
-vault kv get secret/myapp/config
-
-# Get a specific version
-vault kv get -version=2 secret/myapp/config
-
-# List secrets at a path
-vault kv list secret/myapp/
-```
-
-### Database Engine
-
-Dynamically generates database credentials on request. Rather than storing a static password, Vault connects to your database server, creates a new user with a short TTL, returns the credentials, and then deletes the user when the TTL expires.
-
-This is one of Vault's most powerful features and is covered in depth in Chapter 6.
-
-### AWS Engine
-
-Dynamically generates AWS IAM credentials. When an application requests credentials, Vault creates a new IAM user (or generates a temporary role credential via STS AssumeRole) and returns access key and secret key. These expire automatically.
-
-```bash
-# Enable the AWS secrets engine
-vault secrets enable aws
-
-# Configure it with credentials that have permission to create IAM users
-vault write aws/config/root \
-  access_key="AKID..." \
-  secret_key="..." \
-  region="eu-west-1"
-
-# Create a role defining what IAM policies the generated credentials will have
-vault write aws/roles/deploy-role \
-  credential_type=iam_user \
-  policy_document='{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject"],
-      "Resource": "arn:aws:s3:::my-deploy-bucket/*"
-    }]
-  }'
-
-# Request credentials
-vault read aws/creds/deploy-role
-# Returns: access_key, secret_key, security_token, lease_id, lease_duration
-```
-
-### PKI Engine
-
-Acts as a certificate authority. Issues X.509 certificates with configurable lifetimes, SANs, and key usage. Covered in depth in Chapter 9.
-
-## Vault Policies
-
-Policies in Vault use HCL (HashiCorp Configuration Language) syntax and define what paths a token can access and what operations it can perform.
-
-```hcl
-# myapp-policy.hcl
-# Allow reading production secrets for myapp
-path "secret/data/myapp/*" {
-  capabilities = ["read", "list"]
-}
-
-# Allow generating database credentials
-path "database/creds/myapp-role" {
-  capabilities = ["read"]
-}
-
-# Allow renewing its own token
-path "auth/token/renew-self" {
-  capabilities = ["update"]
-}
-
-# Allow looking up its own token information
-path "auth/token/lookup-self" {
-  capabilities = ["read"]
-}
-```
-
-The capabilities are: `create`, `read`, `update`, `delete`, `list`, `sudo` (for privileged operations), and `deny`.
-
-```bash
-# Create the policy
-vault policy write myapp-policy myapp-policy.hcl
-
-# List policies
-vault policy list
-
-# Read a policy
-vault policy read myapp-policy
-```
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Using the root token for anything beyond initial setup.** The root token has unlimited access and no TTL. Generate a proper admin token with appropriate policies and revoke the root token immediately after setup.
-
-**Mistake 2: Not configuring audit logging.** Vault's audit log is one of its most valuable features — it records every request and response. Enable it immediately:
-
-```bash
-vault audit enable file file_path=/var/log/vault/audit.log
-```
-
-**Mistake 3: Not planning for unsealing.** If Vault restarts without auto-unseal configured, it is sealed again and all applications that depend on it will fail. Configure auto-unseal with AWS KMS or another cloud KMS before going to production.
-
-**Mistake 4: Short-lived tokens without renewal.** If your application's Vault token expires while the application is running, it will fail to retrieve secrets. Either set long TTLs or implement token renewal logic.
-
-## How This Works in the Real World
-
-Large organisations run Vault as a centralised secrets management platform serving hundreds of services across multiple clouds. A typical production setup includes:
-
-- A 5-node Raft cluster across multiple availability zones
-- Auto-unseal via AWS KMS
-- Kubernetes auth for all Kubernetes workloads
-- AWS IAM auth for Lambda functions and EC2 instances
-- Database secret engines for every database cluster
-- PKI engine for internal certificate issuance
-- Audit logs shipped to a SIEM (security information and event management) system
-- Sentinel policies for compliance enforcement
-
-## Practical Task: Deploy HashiCorp Vault on Kubernetes
-
-**Scenario:** Deploy Vault on your Kubernetes cluster using Helm, configure AWS auth, and set up the database secret engine for an RDS PostgreSQL instance.
-
-**Step 1: Add the HashiCorp Helm repository.**
-
-```bash
-helm repo add hashicorp https://helm.releases.hashicorp.com
-helm repo update
-```
-
-**Step 2: Create a values file for the Vault deployment.**
-
-Save as `vault-values.yaml`:
-
-```yaml
-server:
-  # Enable HA mode with Raft storage
-  ha:
-    enabled: true
-    raft:
-      enabled: true
-      setNodeId: true
-      config: |
-        ui = true
-        
-        listener "tcp" {
-          tls_disable = 1
-          address = "[::]:8200"
-          cluster_address = "[::]:8201"
-        }
-        
-        storage "raft" {
-          path = "/vault/data"
-          retry_join {
-            leader_api_addr = "http://vault-0.vault-internal:8200"
-          }
-          retry_join {
-            leader_api_addr = "http://vault-1.vault-internal:8200"
-          }
-          retry_join {
-            leader_api_addr = "http://vault-2.vault-internal:8200"
-          }
-        }
-        
-        service_registration "kubernetes" {}
-  
-  # Resource limits
-  resources:
-    requests:
-      memory: 256Mi
-      cpu: 250m
-    limits:
-      memory: 256Mi
-  
-  # Data persistence
-  dataStorage:
-    enabled: true
-    size: 10Gi
-    storageClass: standard
-
-ui:
-  enabled: true
-  serviceType: ClusterIP
-
-injector:
-  enabled: true
-```
-
-**Step 3: Install Vault.**
-
-```bash
-kubectl create namespace vault
-
-helm install vault hashicorp/vault \
-  --namespace vault \
-  --values vault-values.yaml
-
-# Wait for pods to start (they will be in 0/1 Running state - this is normal, Vault is sealed)
-kubectl get pods -n vault -w
-```
-
-**Step 4: Initialise and unseal Vault.**
-
-```bash
-# Initialise the first node
-kubectl exec -n vault vault-0 -- vault operator init \
-  -key-shares=1 \
-  -key-threshold=1 \
-  -format=json > vault-init.json
-
-# Extract the unseal key and root token
-UNSEAL_KEY=$(cat vault-init.json | jq -r '.unseal_keys_b64[0]')
-ROOT_TOKEN=$(cat vault-init.json | jq -r '.root_token')
-
-# Unseal all three nodes
-kubectl exec -n vault vault-0 -- vault operator unseal "$UNSEAL_KEY"
-kubectl exec -n vault vault-1 -- vault operator unseal "$UNSEAL_KEY"
-kubectl exec -n vault vault-2 -- vault operator unseal "$UNSEAL_KEY"
-
-# Verify they are all sealed=false
-kubectl exec -n vault vault-0 -- vault status
-```
-
-**Step 5: Configure Kubernetes authentication.**
-
-```bash
-# Set VAULT_ADDR and VAULT_TOKEN
-export VAULT_ADDR="http://$(kubectl get svc -n vault vault -o jsonpath='{.spec.clusterIP}'):8200"
-export VAULT_TOKEN="$ROOT_TOKEN"
-
-# Enable Kubernetes auth
-vault auth enable kubernetes
-
-# Configure it
-vault write auth/kubernetes/config \
-  kubernetes_host="https://kubernetes.default.svc.cluster.local:443"
-```
-
-**Step 6: Configure the database secret engine.**
-
-```bash
-# Enable the database engine
-vault secrets enable database
-
-# Configure it for your RDS PostgreSQL instance
-vault write database/config/my-postgres \
-  plugin_name=postgresql-database-plugin \
-  allowed_roles="myapp-role" \
-  connection_url="postgresql://{{username}}:{{password}}@${DB_ENDPOINT}:5432/postgres?sslmode=require" \
-  username="vault_admin" \
-  password="vault-admin-password"
-
-# Create a role that defines the SQL for creating users
-vault write database/roles/myapp-role \
-  db_name=my-postgres \
-  creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
-  default_ttl="1h" \
-  max_ttl="24h"
-
-# Test it - request credentials
-vault read database/creds/myapp-role
-```
-
-You should see a unique username and password returned. Those credentials exist in PostgreSQL for exactly 1 hour and then are automatically revoked.
-
-## Chapter Summary
-
-- Vault is cloud-agnostic secrets management that works across any infrastructure.
-- Vault is sealed at startup. Use auto-unseal (AWS KMS) for production.
-- Storage backends (Raft, Consul, S3) determine where encrypted data is persisted.
-- Auth methods (Token, AppRole, AWS, Kubernetes) determine how clients authenticate.
-- Secret engines (KV, Database, AWS, PKI) determine how secrets are stored or generated.
-- Policies in HCL define what paths and operations a token can access.
-- Always enable audit logging from the beginning.
 
 ---
 
-# Chapter 6: Vault Dynamic Secrets — Database Credentials, AWS Credentials, PKI Certificates {#chapter-6}
-
-## The Fundamental Problem With Static Secrets
-
-Every secret you have ever created has a birthday — the day it was generated. Most secrets also have a problem: they have no expiration date. A database password created three years ago, never rotated, still works today. An AWS access key generated for a developer who left the company six months ago may still be valid. A certificate issued with a ten-year validity period will still work nine years from now, even if the corresponding private key was compromised.
-
-Static secrets are a problem not because they are inherently weak, but because they accumulate over time. The longer a secret exists and the more places it is copied, the greater the attack surface. The only way to truly eliminate the risk of a leaked static secret is to revoke it — but in practice, revocation is hard, disruptive, and often deferred until it is too late.
-
-Vault's dynamic secrets approach this problem differently. Instead of creating a secret once and distributing it, Vault generates a **unique, short-lived secret on every request**. When the secret expires, Vault automatically revokes it from the backing service. There is no long-lived secret to leak, and if a secret is somehow compromised, it is worthless by the time an attacker tries to use it.
-
-## Dynamic Database Credentials
-
-This is the most impactful use case for dynamic secrets. Every application, every developer, every job that needs database access gets a unique credential that exists only for as long as needed.
-
-### How It Works
-
-1. An application authenticates to Vault and requests database credentials for role `myapp-role`
-2. Vault connects to the database using its own admin credential
-3. Vault executes the SQL statements defined in the role: `CREATE ROLE "v-appname-abc123" WITH LOGIN PASSWORD 'randompass' VALID UNTIL '2024-01-01 12:00:00'`
-4. Vault returns the username, password, and lease ID to the application
-5. The application connects to the database using these credentials
-6. When the lease expires (or is revoked), Vault executes: `DROP ROLE "v-appname-abc123"`
-
-The username format (`v-{role}-{random}`) means every credential is uniquely identifiable in database logs. If you see suspicious queries, you can trace them to a specific application request.
-
-### Configuration
-
-```bash
-# Enable the database engine (if not already done)
-vault secrets enable database
-
-# Configure a PostgreSQL connection
-vault write database/config/production-postgres \
-  plugin_name=postgresql-database-plugin \
-  allowed_roles="readonly,readwrite,migrations" \
-  connection_url="postgresql://{{username}}:{{password}}@prod-db.example.com:5432/app?sslmode=require" \
-  username="vault_admin" \
-  password="vault-admin-password" \
-  max_open_connections=5 \
-  max_idle_connections=0 \
-  max_connection_lifetime="5m"
-
-# Create a read-only role (short TTL - for application queries)
-vault write database/roles/readonly \
-  db_name=production-postgres \
-  creation_statements="
-    CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
-    GRANT CONNECT ON DATABASE app TO \"{{name}}\";
-    GRANT USAGE ON SCHEMA public TO \"{{name}}\";
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO \"{{name}}\";
-  " \
-  revocation_statements="
-    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM \"{{name}}\";
-    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM \"{{name}}\";
-    REVOKE CONNECT ON DATABASE app FROM \"{{name}}\";
-    DROP ROLE IF EXISTS \"{{name}}\";
-  " \
-  default_ttl="1h" \
-  max_ttl="24h"
-
-# Create a read-write role (for application writes)
-vault write database/roles/readwrite \
-  db_name=production-postgres \
-  creation_statements="
-    CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
-    GRANT CONNECT ON DATABASE app TO \"{{name}}\";
-    GRANT USAGE ON SCHEMA public TO \"{{name}}\";
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";
-    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO \"{{name}}\";
-  " \
-  revocation_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
-  default_ttl="1h" \
-  max_ttl="24h"
-
-# Create a migrations role (slightly longer TTL for schema migrations)
-vault write database/roles/migrations \
-  db_name=production-postgres \
-  creation_statements="
-    CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
-    GRANT ALL PRIVILEGES ON DATABASE app TO \"{{name}}\";
-  " \
-  revocation_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
-  default_ttl="4h" \
-  max_ttl="8h"
-```
-
-### Requesting Credentials
-
-```bash
-# Request read-only credentials (CLI)
-vault read database/creds/readonly
-
-# Output:
-# Key                Value
-# ---                -----
-# lease_id           database/creds/readonly/AbCdEf12345
-# lease_duration     1h
-# lease_renewable    true
-# password           A1b2-C3d4-E5f6-G7h8
-# username           v-readonly-AbCdEf12-1704067200
-```
-
-In application code (Python with the hvac library):
-
-```python
-import hvac
-import psycopg2
-
-def get_database_connection():
-    """Get a database connection using Vault dynamic credentials."""
-    
-    # Create an authenticated Vault client
-    # (authentication method depends on your environment)
-    vault_client = hvac.Client(url='https://vault.internal:8200')
-    vault_client.auth.kubernetes.login(
-        role='myapp',
-        jwt=open('/var/run/secrets/kubernetes.io/serviceaccount/token').read()
-    )
-    
-    # Request database credentials
-    creds = vault_client.secrets.database.generate_credentials(
-        name='readonly'
-    )
-    
-    username = creds['data']['username']
-    password = creds['data']['password']
-    lease_id = creds['lease_id']
-    lease_duration = creds['lease_duration']
-    
-    # Connect to the database
-    conn = psycopg2.connect(
-        host='prod-db.example.com',
-        database='app',
-        user=username,
-        password=password,
-        sslmode='require'
-    )
-    
-    return conn, lease_id, vault_client
-
-
-def renew_lease(vault_client, lease_id):
-    """Renew a Vault lease to extend the credential TTL."""
-    vault_client.sys.renew_lease(
-        lease_id=lease_id,
-        increment=3600  # Extend by 1 hour
-    )
-
-
-def revoke_lease(vault_client, lease_id):
-    """Explicitly revoke credentials when done."""
-    vault_client.sys.revoke_lease(lease_id=lease_id)
-```
-
-### Verifying Credentials Are Unique Per Request
-
-```bash
-# Request credentials twice and compare usernames
-vault read database/creds/readonly
-# username: v-readonly-X1y2Z3-1704067200
-
-vault read database/creds/readonly
-# username: v-readonly-A4b5C6-1704067215
-
-# The usernames are different - each request creates a new database user
-# Verify in PostgreSQL:
-psql -U admin -c "SELECT usename, valuntil FROM pg_user WHERE usename LIKE 'v-%';"
-```
-
-You should see two distinct users in the PostgreSQL `pg_user` table, each with their own expiration time.
-
-## Dynamic AWS Credentials
-
-The AWS secret engine generates IAM credentials dynamically, following the same pattern as database credentials.
-
-```bash
-# Enable and configure the AWS engine
-vault secrets enable aws
-
-vault write aws/config/root \
-  access_key="AKID..." \
-  secret_key="..." \
-  region="eu-west-1"
-
-# Set a default lease TTL
-vault write aws/config/lease \
-  lease=1h \
-  lease_max=24h
-
-# Create a role using IAM user type
-vault write aws/roles/s3-deploy \
-  credential_type=iam_user \
-  policy_document='{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::my-app-bucket/*"
-    }]
-  }'
-
-# Create a role using assumed_role type (preferred - no long-lived IAM users)
-vault write aws/roles/ec2-readonly \
-  credential_type=assumed_role \
-  role_arns="arn:aws:iam::ACCOUNT:role/EC2ReadOnlyRole" \
-  default_sts_ttl=1h
-
-# Request credentials
-vault read aws/creds/s3-deploy
-# Returns: access_key, secret_key, security_token (if assumed_role)
-```
-
-The `assumed_role` credential type is preferred over `iam_user` because assumed roles generate temporary STS credentials (no permanent IAM user created in your account) and are automatically time-limited.
-
-## Dynamic PKI Certificates
-
-The PKI secret engine turns Vault into a certificate authority. Instead of issuing long-lived certificates (one year, two years), you can issue certificates with very short TTLs (hours, days) because issuance is instant and automatic.
-
-```bash
-# Enable the PKI engine
-vault secrets enable pki
-
-# Set the maximum TTL for certificates issued from this engine
-vault secrets tune -max-lease-ttl=8760h pki  # 1 year max
-
-# Generate the root CA certificate
-# In production, you would import an externally-generated root CA
-vault write pki/root/generate/internal \
-  common_name="Internal Root CA" \
-  ttl=87600h  # 10 years for the root
-
-# Configure URLs for CRL and OCSP
-vault write pki/config/urls \
-  issuing_certificates="https://vault.internal:8200/v1/pki/ca" \
-  crl_distribution_points="https://vault.internal:8200/v1/pki/crl"
-
-# Enable an intermediate CA (recommended - don't use root directly)
-vault secrets enable -path=pki_int pki
-vault secrets tune -max-lease-ttl=43800h pki_int  # 5 years max
-
-# Generate an intermediate CA CSR
-vault write -format=json pki_int/intermediate/generate/internal \
-  common_name="Internal Intermediate CA" | jq -r '.data.csr' > intermediate-ca.csr
-
-# Sign the intermediate with the root
-vault write -format=json pki/root/sign-intermediate \
-  csr=@intermediate-ca.csr \
-  format=pem_bundle \
-  ttl=43800h | jq -r '.data.certificate' > intermediate-ca.pem
-
-# Import the signed certificate
-vault write pki_int/intermediate/set-signed \
-  certificate=@intermediate-ca.pem
-
-# Create a role for issuing application certificates
-vault write pki_int/roles/internal-services \
-  allowed_domains="internal.example.com,svc.cluster.local" \
-  allow_subdomains=true \
-  max_ttl=720h  # 30 days maximum
-  generate_lease=true
-
-# Issue a certificate
-vault write pki_int/issue/internal-services \
-  common_name="myapp.internal.example.com" \
-  ttl=24h \
-  alt_names="myapp.svc.cluster.local"
-```
-
-The output includes the certificate, private key, issuing CA certificate, and serial number — everything an application needs to set up TLS.
-
-## The Lease Lifecycle
-
-All dynamic secrets in Vault are governed by leases. Understanding leases is essential for building applications that use dynamic secrets correctly.
-
-```
-Secret Created
-     │
-     ▼
-[Lease Active] ────── TTL ──────► [Lease Expired]
-     │                                    │
-     │ renew()                    Vault auto-revokes
-     │                            the credential
-     ▼
-[Lease Renewed] ─── Max TTL ──► [Lease Expired]
-     │                           (cannot renew past max TTL)
-     │
-     │ revoke()
-     ▼
-[Lease Revoked]
-Vault immediately
-revokes credential
-```
-
-**Default TTL:** How long a credential is valid when first created.
-**Max TTL:** The absolute maximum lifetime of a credential, regardless of renewals.
-**Renewal:** Extending the TTL before it expires (up to max TTL).
-**Revocation:** Immediately destroying a credential before it expires.
-
-For long-running applications, implement lease renewal logic. For short-lived jobs (Lambda functions, Kubernetes Jobs), let the lease expire naturally — or revoke it explicitly when the job completes.
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Not implementing lease renewal for long-running applications.** If your application has a 1-hour lease and runs for 8 hours, it will fail after the first hour. Either increase the max TTL or implement renewal logic.
-
-**Mistake 2: Creating database roles without revocation statements.** If you do not provide revocation SQL, Vault cannot clean up the database user when the lease expires, leaving orphaned users accumulating in your database.
-
-**Mistake 3: Using iam_user credential type instead of assumed_role.** IAM users are permanent until explicitly deleted. If Vault fails to clean up an IAM user (due to a network error, for example), the user persists in your account indefinitely.
-
-**Mistake 4: Issuing certificates with very long TTLs and then expecting Vault to "rotate" them.** Dynamic certificates should have short TTLs by design. Long TTLs defeat the purpose.
-
-## How This Works in the Real World
-
-Organisations using Vault dynamic secrets for databases typically see dramatic improvements in their security posture:
-
-- Every query in the database audit log is attributed to a specific Vault role request, traceable to a specific application deployment
-- When a service is decommissioned, its Vault policies are deleted, and any outstanding leases are revoked — the database users disappear
-- Developers who need temporary database access request credentials through Vault with a 2-hour TTL, and the credentials are automatically revoked without any manual cleanup required
-
-## Practical Task: Implement Vault Dynamic Secrets for PostgreSQL
-
-**Scenario:** Configure Vault's database secret engine for a PostgreSQL database, verify that credentials are unique per request, and observe automatic credential revocation.
-
-**Step 1: Set up the Vault admin user in PostgreSQL.**
-
-```sql
--- Connect as the PostgreSQL superuser
-CREATE ROLE vault_admin WITH LOGIN PASSWORD 'VaultAdminPassword123!';
-GRANT CREATE ROLE TO vault_admin;
-GRANT CREATEROLE ON DATABASE appdb TO vault_admin;
--- Vault needs to be able to create and revoke roles
-GRANT pg_signal_backend TO vault_admin;
-```
-
-**Step 2: Configure the database engine in Vault.**
-
-```bash
-vault secrets enable database
-
-vault write database/config/appdb \
-  plugin_name=postgresql-database-plugin \
-  allowed_roles="app-readonly,app-readwrite" \
-  connection_url="postgresql://{{username}}:{{password}}@localhost:5432/appdb?sslmode=disable" \
-  username="vault_admin" \
-  password="VaultAdminPassword123!"
-
-vault write database/roles/app-readonly \
-  db_name=appdb \
-  creation_statements="
-    CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
-    GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";
-  " \
-  revocation_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
-  default_ttl="5m" \
-  max_ttl="10m"
-```
-
-Note the 5-minute TTL — very short for easy observation in this exercise.
-
-**Step 3: Request credentials twice and verify uniqueness.**
-
-```bash
-# First request
-CREDS1=$(vault read -format=json database/creds/app-readonly)
-echo "Request 1 username: $(echo $CREDS1 | jq -r '.data.username')"
-echo "Request 1 lease: $(echo $CREDS1 | jq -r '.lease_id')"
-
-# Second request
-CREDS2=$(vault read -format=json database/creds/app-readonly)
-echo "Request 2 username: $(echo $CREDS2 | jq -r '.data.username')"
-echo "Request 2 lease: $(echo $CREDS2 | jq -r '.lease_id')"
-
-# Verify in PostgreSQL that both users exist
-psql -U postgres -c "SELECT usename, valuntil FROM pg_user WHERE usename LIKE 'v-%';"
-```
-
-**Step 4: Verify automatic revocation.**
-
-```bash
-# Wait 6 minutes (past the 5-minute TTL)
-sleep 360
-
-# Check if the users still exist in PostgreSQL - they should be gone
-psql -U postgres -c "SELECT usename FROM pg_user WHERE usename LIKE 'v-%';"
-# Should return 0 rows
-```
-
-**Step 5: Test explicit revocation.**
-
-```bash
-# Request new credentials
-CREDS=$(vault read -format=json database/creds/app-readonly)
-LEASE_ID=$(echo $CREDS | jq -r '.lease_id')
-USERNAME=$(echo $CREDS | jq -r '.data.username')
-
-# Verify the user exists
-psql -U postgres -c "SELECT usename FROM pg_user WHERE usename = '$USERNAME';"
-
-# Explicitly revoke the lease
-vault lease revoke "$LEASE_ID"
-
-# Verify the user is immediately gone
-psql -U postgres -c "SELECT usename FROM pg_user WHERE usename = '$USERNAME';"
-# Returns 0 rows - immediate revocation
-```
-
-## Chapter Summary
-
-- Dynamic secrets are generated on-demand and expire automatically. They eliminate the problem of long-lived static credentials.
-- The database engine creates unique PostgreSQL/MySQL/MongoDB users per request and deletes them when the lease expires.
-- The AWS engine generates temporary IAM credentials. Use assumed_role type over iam_user to avoid permanent IAM user creation.
-- The PKI engine acts as a certificate authority, issuing short-lived TLS certificates on demand.
-- Lease lifecycle: credentials are valid for the default TTL, renewable up to max TTL, and revocable on demand.
-- Always define revocation statements for database roles so Vault can clean up properly.
-
----
-
-# Chapter 7: OIDC and Workload Identity — GitHub Actions OIDC, Kubernetes Service Account Federation {#chapter-7}
-
-## The Problem With Service Credentials
-
-For years, the standard way to give a CI/CD pipeline access to AWS was to create an IAM user, generate access keys, and store those keys as secrets in the CI/CD system. GitHub Actions stores them as repository secrets. Jenkins encrypts them in its credential store. Whatever the tool, the pattern was the same: create a long-lived credential, give it to the pipeline.
-
-This approach works but has serious problems:
-
-**The credentials never expire.** An IAM access key created for a CI/CD job from two years ago is still valid unless someone explicitly deletes it. If it was ever copied, shared, or leaked, you may never know.
-
-**The credentials are disconnected from the job.** You cannot tell from an IAM access key audit trail *which specific workflow run* used it. You know the key was used, but not the context.
-
-**Credential rotation is manual and disruptive.** When you rotate the IAM access key, you need to update every place the old key is stored. Miss one, and a pipeline breaks.
-
-**Credential sprawl is hard to manage.** An organisation with dozens of repositories and hundreds of workflows can have hundreds of IAM users created purely for CI/CD purposes.
-
-OIDC (OpenID Connect) workload identity eliminates static credentials for CI/CD and Kubernetes workloads entirely.
-
-## Understanding OIDC
-
-OpenID Connect is an authentication layer built on top of OAuth 2.0. You use it every time you click "Sign in with Google" or "Sign in with GitHub." The service you are signing into trusts Google or GitHub to assert your identity, and uses a cryptographically signed token (a JWT) to prove that assertion.
-
-The same mechanism works for machine identities. GitHub, for example, can assert: "This job is running in the repository `myorg/myrepo`, on branch `main`, triggered by a push event." AWS can be configured to trust GitHub's assertions and exchange them for temporary AWS credentials.
-
-The key insight is: **the secret is the identity of the workload itself, attested by the identity provider.** There is nothing to store, nothing to rotate, nothing to leak.
-
-## How OIDC Tokens Work
-
-An OIDC token is a JSON Web Token (JWT) — a base64-encoded JSON document, cryptographically signed by the identity provider. When decoded, it looks like:
-
-```json
-{
-  "iss": "https://token.actions.githubusercontent.com",
-  "sub": "repo:myorg/myrepo:ref:refs/heads/main",
-  "aud": "sts.amazonaws.com",
-  "exp": 1704067200,
-  "iat": 1704063600,
-  "jti": "unique-token-id",
-  "ref": "refs/heads/main",
-  "sha": "abc123def456",
-  "repository": "myorg/myrepo",
-  "repository_owner": "myorg",
-  "job_workflow_ref": "myorg/myrepo/.github/workflows/deploy.yml@refs/heads/main",
-  "workflow": "Deploy",
-  "event_name": "push",
-  "run_id": "1234567890",
-  "run_number": "42"
-}
-```
-
-The `sub` (subject) claim uniquely identifies the workflow: which repository, which ref. The `iss` (issuer) identifies GitHub as the source of the claim. AWS verifies the token's signature using GitHub's public keys (available at `https://token.actions.githubusercontent.com/.well-known/openid-configuration`) before accepting it.
-
-## Setting Up OIDC Between GitHub Actions and AWS
-
-### Step 1: Create the Identity Provider in AWS
-
-You need to tell AWS to trust GitHub's OIDC tokens.
-
-```bash
-# Create the OIDC identity provider
-aws iam create-open-id-connect-provider \
-  --url "https://token.actions.githubusercontent.com" \
-  --client-id-list "sts.amazonaws.com" \
-  --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
-
-# The thumbprint is the SHA-1 hash of the top intermediate certificate
-# in the chain for token.actions.githubusercontent.com
-# You can verify it but this value is correct as of 2024
-```
-
-### Step 2: Create the IAM Role
-
-Create a role that GitHub Actions can assume. The trust policy specifies which repositories and branches are allowed.
+### IAM Permissions for Parameter Store
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowGitHubActionsOIDC",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": "arn:aws:ssm:us-east-1:*:parameter/myapp/prod/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "kms:Decrypt",
+      "Resource": "arn:aws:kms:us-east-1:*:key/your-ssm-kms-key-id"
+    }
+  ]
+}
+```
+
+Note: If using `SecureString` parameters with KMS, the IAM role needs both SSM permissions *and* `kms:Decrypt` on the specific KMS key used for encryption.
+
+---
+
+### How This Works in the Real World
+
+In practice, Parameter Store and Secrets Manager are often used together:
+
+- **Secrets Manager** for: database passwords (with auto-rotation), API keys for third-party services, OAuth secrets
+- **Parameter Store** for: non-sensitive configuration (database hostnames, ports, names), feature flags, application settings, environment-specific URLs, runtime configuration that changes infrequently
+
+Many organisations use a pattern where application configuration is entirely loaded from Parameter Store at startup (or with periodic refresh), replacing all environment variables and config files. This centralises configuration management, enables auditing, and allows configuration changes without code deployments.
+
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Using String type for sensitive values**
+
+String parameters are stored and transmitted in plain text. Always use `SecureString` for passwords, API keys, and tokens.
+
+**Mistake 2: Not using the path hierarchy**
+
+Flat parameter names like `MyAppProdDbPassword` become unmanageable at scale. Use `/environment/application/category/name` from day one.
+
+**Mistake 3: Forgetting KMS permissions**
+
+A common error: IAM role has `ssm:GetParameter` but not `kms:Decrypt`. The parameter retrieval fails with an access denied error on the KMS decrypt call. Both permissions are needed for `SecureString`.
+
+---
+
+### Practical Task — Chapter 4
+
+There is no standalone task for this chapter — Parameter Store is used extensively in Chapters 5, 7, and 8. However, as an exercise:
+
+**Exercise:** Refactor an existing application's configuration to load all settings from Parameter Store. Create a hierarchy of at least 5 parameters (at least 2 of type `SecureString`), load them in your application code, and demonstrate that changing a parameter value in SSM immediately takes effect when the application is restarted (without any code changes).
+
+---
+
+### Chapter 4 Summary
+
+- Parameter Store is a hierarchical configuration store with three types: String, StringList, and SecureString.
+- SecureString encrypts values with KMS — always use it for sensitive data.
+- The advanced tier enables parameter policies: automatic expiration, expiration notifications, and no-change notifications.
+- Use path hierarchies (`/app/env/category/key`) for organised, scalable parameter management.
+- Parameter Store and Secrets Manager complement each other — use the right tool for the right job.
+
+---
+
+## Chapter 5: HashiCorp Vault — Architecture, Storage Backends, Auth Methods, Secret Engines {#chapter-5}
+
+### Why Vault Exists
+
+AWS Secrets Manager and Parameter Store are excellent when you're running workloads purely on AWS. But what if you have:
+
+- Applications running on-premises, in a data centre, or across multiple cloud providers?
+- Teams using Kubernetes on GKE, AKS, or self-managed clusters?
+- A need for secrets management that isn't tied to a specific cloud vendor?
+- Highly dynamic secrets (credentials that exist for minutes, not weeks)?
+- A need for fine-grained access control that goes beyond what IAM provides?
+
+HashiCorp Vault is an open-source secrets management platform designed to address all of these scenarios. It's cloud-agnostic, highly configurable, and widely used in enterprise environments.
+
+Think of Vault as a "secrets operating system" — a platform that sits in the middle of your infrastructure and controls who gets access to what sensitive information, for how long, and under what conditions.
+
+---
+
+### Vault Architecture
+
+**Core components:**
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Vault Server                       │
+│                                                      │
+│  ┌──────────────┐    ┌──────────────────────────┐   │
+│  │  HTTP/HTTPS  │    │      Secret Engines       │   │
+│  │    API       │    │  KV, AWS, PKI, DB, SSH   │   │
+│  └──────┬───────┘    └──────────────────────────┘   │
+│         │                                            │
+│  ┌──────▼───────┐    ┌──────────────────────────┐   │
+│  │  Auth Methods│    │     Audit Devices         │   │
+│  │ Token,AppRole│    │  File, Syslog, Socket     │   │
+│  │ AWS, K8s,OIDC│    └──────────────────────────┘   │
+│  └──────┬───────┘                                   │
+│         │                                            │
+│  ┌──────▼───────────────────────────────────────┐   │
+│  │           Core: Barrier / Seal               │   │
+│  │     (AES-256-GCM encryption at rest)         │   │
+│  └──────┬───────────────────────────────────────┘   │
+└─────────┼───────────────────────────────────────────┘
+          │
+   ┌──────▼───────────────────────┐
+   │       Storage Backend        │
+   │  Consul, DynamoDB, Raft, S3  │
+   └──────────────────────────────┘
+```
+
+Let's understand each layer:
+
+**Storage Backend:** Vault itself doesn't store data; it writes encrypted data to a backend. The backend has no knowledge of the actual secret values — it just stores opaque encrypted blobs. Common backends:
+- **Integrated Raft storage** — built-in, recommended for most deployments. Vault manages its own HA cluster.
+- **Consul** — HashiCorp's service mesh/KV store. Popular for legacy deployments.
+- **DynamoDB** — Good for AWS-hosted Vault clusters.
+- **S3** — Simple, but does not support HA.
+
+**Barrier / Seal:** Vault's encryption layer. All data written to storage is encrypted with Vault's master key. When Vault starts up, it is "sealed" — it knows where storage is but cannot decrypt it. It must be "unsealed" before it can serve requests. More on this below.
+
+**Auth Methods:** How clients authenticate to Vault. Vault supports many auth methods:
+- **Token:** A simple bearer token. Every other auth method ultimately issues a token.
+- **AppRole:** Designed for machine-to-machine auth. A "role ID" + "secret ID" combination to get a token.
+- **AWS:** Authenticate using an AWS IAM role. The calling service proves its AWS identity to Vault.
+- **Kubernetes:** Authenticate using a Kubernetes service account token.
+- **OIDC:** Authenticate using an OIDC provider (GitHub, Google, Okta, etc.).
+
+**Secret Engines:** Vault's pluggable modules for different types of secrets:
+- **KV (Key-Value):** Store and retrieve arbitrary key-value secrets. The simplest engine.
+- **AWS:** Dynamically generate short-lived AWS IAM credentials.
+- **Database:** Dynamically generate database credentials.
+- **PKI:** Issue TLS certificates on demand.
+- **SSH:** Issue short-lived SSH credentials.
+- **Transit:** Encryption as a service — encrypt/decrypt data without storing secrets.
+
+---
+
+### The Seal/Unseal Process
+
+When Vault starts, it is **sealed** — it holds an encrypted storage but doesn't know the master key. To become operational, it must be **unsealed**.
+
+**Why this matters:** If Vault is ever compromised at the storage level (the database is exfiltrated, the disk is stolen), the data is useless without the master key. The unsealing process is the ceremony that brings the master key into memory.
+
+**Shamir's Secret Sharing:** By default, Vault uses a cryptographic technique called Shamir's Secret Sharing to split the master key into multiple "unseal keys." For example:
+- Master key split into 5 shares
+- Any 3 of the 5 shares are needed to reconstruct it
+- Each share goes to a different trusted person
+
+This means no single person can unseal Vault alone — you need multiple people to collaborate. This enforces separation of duties for the most privileged operation in your secrets management system.
+
+**Auto-unseal:** In cloud deployments, it's impractical to have 3 people present every time Vault restarts. Auto-unseal uses a cloud KMS service (AWS KMS, GCP KMS, Azure Key Vault) to automatically decrypt the master key on startup. This maintains the security of the master key (it never leaves the HSM) while allowing Vault to restart automatically.
+
+---
+
+### Deploying Vault on Kubernetes with Helm
+
+The most common production Vault deployment is on Kubernetes using the official Helm chart.
+
+```bash
+# Add the HashiCorp Helm repository
+helm repo add hashicorp https://helm.releases.hashicorp.com
+helm repo update
+
+# Create a namespace for Vault
+kubectl create namespace vault
+
+# Install Vault using Helm
+# This creates a 3-node HA Vault cluster using integrated Raft storage
+helm install vault hashicorp/vault \
+  --namespace vault \
+  --set server.ha.enabled=true \
+  --set server.ha.raft.enabled=true \
+  --set server.ha.replicas=3
+
+# Verify the pods are running (they'll be in 0/1 state - not ready - until initialised)
+kubectl get pods -n vault
+```
+
+**Initialising and unsealing Vault:**
+
+```bash
+# Initialise Vault on the first pod
+# This generates the unseal keys and root token
+kubectl exec -n vault vault-0 -- vault operator init \
+  -key-shares=5 \
+  -key-threshold=3 \
+  -format=json > vault-init.json
+
+# CRITICAL: Save vault-init.json securely. These are your unseal keys and root token.
+# In production, distribute the keys to different people and store them in a HSM or secure offline storage.
+
+# View the init output (do this privately)
+cat vault-init.json | python3 -m json.tool
+
+# Unseal vault-0 (repeat with 3 different keys from vault-init.json)
+kubectl exec -n vault vault-0 -- vault operator unseal $(cat vault-init.json | python3 -c "import sys,json; print(json.load(sys.stdin)['unseal_keys_b64'][0])")
+kubectl exec -n vault vault-0 -- vault operator unseal $(cat vault-init.json | python3 -c "import sys,json; print(json.load(sys.stdin)['unseal_keys_b64'][1])")
+kubectl exec -n vault vault-0 -- vault operator unseal $(cat vault-init.json | python3 -c "import sys,json; print(json.load(sys.stdin)['unseal_keys_b64'][2])")
+
+# Join vault-1 and vault-2 to the Raft cluster
+kubectl exec -n vault vault-1 -- vault operator raft join http://vault-0.vault-internal:8200
+kubectl exec -n vault vault-1 -- vault operator unseal KEY1
+kubectl exec -n vault vault-1 -- vault operator unseal KEY2
+kubectl exec -n vault vault-1 -- vault operator unseal KEY3
+
+kubectl exec -n vault vault-2 -- vault operator raft join http://vault-0.vault-internal:8200
+kubectl exec -n vault vault-2 -- vault operator unseal KEY1
+kubectl exec -n vault vault-2 -- vault operator unseal KEY2
+kubectl exec -n vault vault-2 -- vault operator unseal KEY3
+
+# Log in with the root token
+export VAULT_TOKEN=$(cat vault-init.json | python3 -c "import sys,json; print(json.load(sys.stdin)['root_token'])")
+kubectl exec -n vault vault-0 -- vault login $VAULT_TOKEN
+```
+
+---
+
+### Configuring the AWS Auth Method
+
+Instead of managing static Vault tokens for your applications, you use the AWS auth method to authenticate using AWS IAM roles. An EC2 instance or Lambda function proves its AWS identity to Vault and receives a Vault token in return.
+
+```bash
+# Enable the AWS auth method
+vault auth enable aws
+
+# Configure the AWS auth method with your AWS credentials
+# (Or use an IAM role on the Vault server for this)
+vault write auth/aws/config/client \
+  access_key="AWS_ACCESS_KEY" \
+  secret_key="AWS_SECRET_KEY" \
+  region="us-east-1"
+
+# Create a Vault role that maps an AWS IAM role to Vault policies
+vault write auth/aws/role/my-app-role \
+  auth_type=iam \
+  bound_iam_principal_arn="arn:aws:iam::123456789012:role/MyApplicationRole" \
+  policies=my-app-policy \
+  ttl=1h \
+  max_ttl=4h
+```
+
+Now, any EC2 instance or Lambda with `MyApplicationRole` can authenticate to Vault:
+
+```bash
+# On the application server, authenticate using the AWS auth method
+vault login -method=aws role=my-app-role
+```
+
+Under the hood, the Vault AWS auth method calls `sts:GetCallerIdentity` to verify the caller's AWS identity, then issues a Vault token with the configured policies and TTL.
+
+---
+
+### Vault Policies
+
+Vault policies are HCL (HashiCorp Configuration Language) documents that define what paths a token can access and what operations it can perform.
+
+```hcl
+# my-app-policy.hcl
+# This policy allows the application to read secrets from its namespace
+# and to use the database secret engine
+
+path "secret/data/myapp/*" {
+  capabilities = ["read"]
+}
+
+path "database/creds/myapp-role" {
+  capabilities = ["read"]
+}
+
+path "auth/token/renew-self" {
+  capabilities = ["update"]
+}
+```
+
+```bash
+# Write the policy to Vault
+vault policy write my-app-policy my-app-policy.hcl
+
+# Verify the policy was written
+vault policy read my-app-policy
+```
+
+**Capabilities:**
+- `read` — Retrieve secret values
+- `list` — List keys (not values) at a path
+- `create` — Create new secrets
+- `update` — Modify existing secrets
+- `delete` — Remove secrets
+- `sudo` — Perform root-protected operations
+
+---
+
+### How This Works in the Real World
+
+In production Vault deployments you'll typically find:
+
+- **Vault deployed in HA mode** (3 or 5 nodes) with integrated Raft storage, auto-unseal via AWS KMS
+- **Multiple auth methods enabled:** Kubernetes for container workloads, AWS IAM for non-K8s workloads, OIDC for human operators
+- **Secret engines organised by team/environment:** `secret/team-a/prod/`, `database/roles/team-a-prod-*`
+- **Vault Agent or Vault Secrets Operator** handling authentication and secret fetching automatically for applications (applications just read from a local file or environment variable; the agent handles the Vault interaction)
+- **Audit logging enabled** to both a local file and a syslog endpoint, with the logs shipped to a SIEM
+
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Using the root token in production**
+
+The root token has unlimited access to Vault. It should be used only for initial setup, then revoked or stored offline (like a break-glass procedure). Create dedicated admin tokens with specific policies instead.
+
+**Mistake 2: Not setting token TTLs**
+
+Vault tokens should have a maximum lifetime (max_ttl). Without it, tokens can be valid indefinitely — defeating much of Vault's security model.
+
+**Mistake 3: Not enabling audit logging**
+
+Vault's value partly comes from its audit trail. Enable at least one audit device before using Vault in any environment. Without it, you have no record of who accessed what.
+
+```bash
+# Enable file audit logging
+vault audit enable file file_path=/vault/logs/audit.log
+```
+
+---
+
+### Practical Task — Chapter 5
+
+**Task: Deploy HashiCorp Vault on K8s using Helm, configure AWS auth, database secret engine for RDS**
+
+**Step 1: Deploy Vault (from the commands above)**
+
+Use the Helm deployment commands in this chapter. Verify all 3 pods are running and unsealed.
+
+**Step 2: Enable and configure the KV secret engine**
+
+```bash
+# Port-forward to access Vault locally
+kubectl port-forward -n vault vault-0 8200:8200 &
+export VAULT_ADDR=http://localhost:8200
+export VAULT_TOKEN=<your-root-token>
+
+# Enable KV version 2 secret engine
+vault secrets enable -version=2 kv
+vault secrets enable -path=secret kv-v2
+
+# Write a test secret
+vault kv put secret/myapp/config \
+  db_host="mydb.cluster-xxxx.rds.amazonaws.com" \
+  api_url="https://api.myservice.com"
+
+# Read the secret back
+vault kv get secret/myapp/config
+```
+
+**Step 3: Configure the Database secret engine for RDS PostgreSQL**
+
+```bash
+# Enable the database secret engine
+vault secrets enable database
+
+# Configure the PostgreSQL connection
+vault write database/config/myapp-postgres \
+  plugin_name=postgresql-database-plugin \
+  allowed_roles="myapp-readonly,myapp-readwrite" \
+  connection_url="postgresql://{{username}}:{{password}}@YOUR_RDS_ENDPOINT:5432/myapp" \
+  username="vault_admin" \
+  password="VaultAdminPassword123!"
+
+# Create a read-only role
+vault write database/roles/myapp-readonly \
+  db_name=myapp-postgres \
+  creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";" \
+  revocation_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
+  default_ttl="1h" \
+  max_ttl="24h"
+
+# Test: generate credentials
+vault read database/creds/myapp-readonly
+# Output: username and password that will expire in 1 hour
+```
+
+**Step 4: Configure AWS auth method**
+
+```bash
+# Enable AWS auth
+vault auth enable aws
+
+# Create a role for your application's IAM role
+vault write auth/aws/role/myapp \
+  auth_type=iam \
+  bound_iam_principal_arn="arn:aws:iam::YOUR_ACCOUNT_ID:role/MyAppRole" \
+  policies=myapp-policy \
+  ttl=1h
+```
+
+**What to demonstrate:** Show Vault pods running, successfully generate database credentials via the database engine, and show they expire after the TTL.
+
+---
+
+### Chapter 5 Summary
+
+- HashiCorp Vault is a cloud-agnostic secrets management platform with a pluggable architecture.
+- The seal/unseal process protects the master key. Use auto-unseal with KMS in production.
+- Auth methods allow different clients to authenticate: AWS IAM, Kubernetes service accounts, OIDC, AppRole.
+- Secret engines handle different secret types: KV for static secrets, Database for dynamic credentials, PKI for certificates.
+- Vault policies (HCL) define fine-grained access control to specific paths and operations.
+- Always enable audit logging and set token TTLs.
+
+---
+
+## Chapter 6: Vault Dynamic Secrets — Database Credentials, AWS Credentials, PKI Certificates {#chapter-6}
+
+### The Problem with Static Credentials
+
+Imagine your application uses a database password. You generate a strong password, store it in Secrets Manager, and configure rotation every 30 days. This is good. But consider:
+
+- The password exists for 30 days. In that 30-day window, if it's leaked, compromised, or observed, an attacker has 30 days to use it.
+- The password is shared — it's the same password used by all instances of your application, potentially running on dozens of servers.
+- Revoking the password means all running instances lose database access simultaneously.
+
+**Dynamic secrets solve this.** Instead of pre-creating credentials and storing them, Vault generates fresh credentials on demand. Each time an application asks for database credentials, it gets a unique username and password that exists only for the duration of that application session (hours, typically). When the session ends, the credentials are automatically revoked.
+
+This is revolutionary. An attacker who steals credentials from one application instance gets credentials that:
+- Only work for a matter of hours
+- Are tied to that specific instance (audit trail)
+- Are automatically revoked when Vault detects the session ended
+
+---
+
+### Dynamic Database Credentials
+
+We configured the database secret engine in Chapter 5. Now let's use it.
+
+**How it works:**
+
+1. Application authenticates to Vault (using AWS auth, K8s auth, etc.)
+2. Application requests credentials: `vault read database/creds/myapp-readonly`
+3. Vault connects to PostgreSQL and runs a `CREATE ROLE` statement with a generated username, password, and expiration timestamp
+4. Vault returns the credentials to the application
+5. When the TTL expires (or the application explicitly releases the credentials), Vault runs a `DROP ROLE` statement to revoke them
+
+The database doesn't have a persistent "application user." Instead, it has a series of short-lived users like:
+```
+v-aws-myapp-readonly-AbCdEfGhIj-1234567890  (password: xxxxxx, valid until 14:00 UTC)
+v-aws-myapp-readonly-KlMnOpQrSt-1234567891  (password: xxxxxx, valid until 14:05 UTC)
+v-aws-myapp-readonly-UvWxYzAbCd-1234567892  (password: xxxxxx, valid until 14:10 UTC)
+```
+
+**Configuring a database role (full example with PostgreSQL):**
+
+```bash
+# First, create a dedicated Vault user in PostgreSQL with permission to create roles
+# Run this directly in your PostgreSQL database:
+psql -h YOUR_RDS_ENDPOINT -U admin -d myapp << 'EOF'
+-- Create the Vault management user
+CREATE ROLE vault_manager WITH LOGIN PASSWORD 'VaultManagerPassword123!' CREATEROLE;
+
+-- Grant necessary permissions
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO vault_manager;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO vault_manager;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO vault_manager;
+EOF
+
+# Configure the Vault database connection
+vault write database/config/myapp-postgres \
+  plugin_name=postgresql-database-plugin \
+  allowed_roles="myapp-readonly,myapp-readwrite,myapp-migrate" \
+  connection_url="postgresql://{{username}}:{{password}}@YOUR_RDS_ENDPOINT:5432/myapp?sslmode=require" \
+  username="vault_manager" \
+  password="VaultManagerPassword123!" \
+  max_open_connections=5 \
+  max_idle_connections=2 \
+  max_connection_lifetime="5m"
+
+# Rotate the vault_manager password immediately
+# (Vault will store the new password; you no longer need to know it)
+vault write -force database/config/myapp-postgres/rotate-root
+
+# Create a read-only role
+vault write database/roles/myapp-readonly \
+  db_name=myapp-postgres \
+  creation_statements="
+    CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO \"{{name}}\";
+    GRANT USAGE ON SCHEMA public TO \"{{name}}\";
+  " \
+  revocation_statements="
+    REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM \"{{name}}\";
+    DROP ROLE IF EXISTS \"{{name}}\";
+  " \
+  renew_statements="
+    ALTER ROLE \"{{name}}\" VALID UNTIL '{{expiration}}';
+  " \
+  rollback_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
+  default_ttl="1h" \
+  max_ttl="24h"
+
+# Create a read-write role
+vault write database/roles/myapp-readwrite \
+  db_name=myapp-postgres \
+  creation_statements="
+    CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\";
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO \"{{name}}\";
+    GRANT USAGE ON SCHEMA public TO \"{{name}}\";
+  " \
+  revocation_statements="DROP ROLE IF EXISTS \"{{name}}\";" \
+  default_ttl="1h" \
+  max_ttl="4h"
+```
+
+**Generating credentials (application side):**
+
+```python
+import hvac
+import psycopg2
+
+def get_db_connection(vault_addr: str, vault_token: str, db_role: str, db_host: str, db_name: str):
+    """
+    Get a PostgreSQL connection using Vault dynamic credentials.
+    """
+    # Connect to Vault
+    vault_client = hvac.Client(url=vault_addr, token=vault_token)
+    
+    # Request database credentials from Vault
+    creds = vault_client.secrets.database.generate_credentials(name=db_role)
+    
+    username = creds['data']['username']
+    password = creds['data']['password']
+    lease_id = creds['lease_id']    # Used to renew or revoke the credentials
+    lease_duration = creds['lease_duration']  # In seconds
+    
+    print(f"Generated credentials for {username}, valid for {lease_duration}s")
+    
+    # Connect to PostgreSQL with the dynamic credentials
+    conn = psycopg2.connect(
+        host=db_host,
+        database=db_name,
+        user=username,
+        password=password,
+        sslmode='require'
+    )
+    
+    return conn, lease_id
+
+# Usage
+conn, lease_id = get_db_connection(
+    vault_addr="http://vault.vault.svc.cluster.local:8200",
+    vault_token="s.YourVaultToken",
+    db_role="myapp-readonly",
+    db_host="mydb.cluster-xxxx.rds.amazonaws.com",
+    db_name="myapp"
+)
+
+# Use the connection...
+with conn.cursor() as cur:
+    cur.execute("SELECT COUNT(*) FROM users")
+    print(cur.fetchone())
+
+conn.close()
+```
+
+---
+
+### Dynamic AWS Credentials
+
+The Vault AWS secret engine can dynamically generate AWS IAM credentials (access keys) on demand. This means instead of creating a permanent IAM user with long-lived access keys, you request fresh credentials from Vault when needed.
+
+```bash
+# Enable the AWS secret engine
+vault secrets enable aws
+
+# Configure with root AWS credentials (or use instance profile)
+vault write aws/config/root \
+  access_key=AWS_ACCESS_KEY_ID \
+  secret_key=AWS_SECRET_ACCESS_KEY \
+  region=us-east-1
+
+# Rotate the root credentials immediately (Vault manages them from now)
+vault write -force aws/config/rotate-root
+
+# Create a role that generates credentials with specific permissions
+vault write aws/roles/myapp-s3-reader \
+  credential_type=iam_user \
+  policy_document=-<<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::my-app-bucket",
+        "arn:aws:s3:::my-app-bucket/*"
+      ]
+    }
+  ]
+}
+EOF
+
+# Or use an existing IAM role (STS AssumeRole) — preferred over IAM users
+vault write aws/roles/myapp-s3-assume \
+  credential_type=assumed_role \
+  role_arns=arn:aws:iam::123456789012:role/MyAppS3ReaderRole \
+  default_sts_ttl=3600 \
+  max_sts_ttl=14400
+```
+
+**Generating AWS credentials:**
+
+```bash
+# Request credentials (IAM user type - creates temporary access keys)
+vault read aws/creds/myapp-s3-reader
+# Returns: access_key, secret_key, lease_id, lease_duration
+
+# Request credentials (assumed role type - creates STS session token)
+vault read aws/creds/myapp-s3-assume
+# Returns: access_key, secret_key, security_token (STS), lease_id
+
+# Revoke credentials when done
+vault lease revoke aws/creds/myapp-s3-reader/LEASE_ID
+```
+
+**Prefer STS assumed role over IAM user** for dynamic credentials — STS credentials are temporary by nature (max 12 hours) and don't create persistent IAM resources.
+
+---
+
+### Dynamic PKI Certificates
+
+The Vault PKI secret engine is a certificate authority (CA) that issues X.509 certificates on demand. This is enormously powerful — instead of managing a complex PKI infrastructure or paying for expensive commercial certificates for internal services, Vault issues certificates dynamically.
+
+```bash
+# Enable the PKI secret engine
+vault secrets enable pki
+
+# Set the maximum certificate TTL (for the root CA)
+vault secrets tune -max-lease-ttl=87600h pki
+
+# Generate a root CA certificate
+vault write -field=certificate pki/root/generate/internal \
+  common_name="MyApp Root CA" \
+  ttl=87600h > root_ca.crt
+
+# Enable a second PKI mount for the intermediate CA (best practice)
+vault secrets enable -path=pki_int pki
+vault secrets tune -max-lease-ttl=43800h pki_int
+
+# Generate an intermediate CA CSR
+vault write -format=json pki_int/intermediate/generate/internal \
+  common_name="MyApp Intermediate CA" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['csr'])" > pki_int.csr
+
+# Sign the intermediate CSR with the root CA
+vault write -format=json pki/root/sign-intermediate \
+  csr=@pki_int.csr \
+  format=pem_bundle \
+  ttl="43800h" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['certificate'])" > intermediate.crt
+
+# Import the signed intermediate certificate
+vault write pki_int/intermediate/set-signed \
+  certificate=@intermediate.crt
+
+# Configure the URLs for CRL and issuer
+vault write pki_int/config/urls \
+  issuing_certificates="http://vault.vault.svc.cluster.local:8200/v1/pki_int/ca" \
+  crl_distribution_points="http://vault.vault.svc.cluster.local:8200/v1/pki_int/crl"
+
+# Create a role for issuing certificates
+vault write pki_int/roles/myapp-server \
+  allowed_domains="myapp.internal,cluster.local" \
+  allow_subdomains=true \
+  allow_bare_domains=false \
+  max_ttl="72h" \
+  require_cn=true
+
+# Issue a certificate
+vault write pki_int/issue/myapp-server \
+  common_name="api.myapp.internal" \
+  ttl="24h" \
+  alt_names="api.myapp.internal,api.cluster.local"
+```
+
+The output of the issue command contains the certificate, private key, and CA chain. The certificate is valid for 24 hours, after which it must be reissued. This short-lived nature means compromised certificates are self-expiring.
+
+---
+
+### How This Works in the Real World
+
+In production systems, dynamic secrets are typically not fetched by applications directly — that creates a dependency on Vault availability and requires every application to implement Vault client logic. Instead, platforms use intermediaries:
+
+- **Vault Agent:** A sidecar process that authenticates to Vault, fetches secrets, writes them to a local file, and renews them before they expire. The application just reads a file.
+- **Vault Secrets Operator:** A Kubernetes operator that syncs Vault secrets into Kubernetes Secrets. Applications use standard Kubernetes secret mounts.
+- **Consul-Template:** A tool that renders templates with Vault secrets and restarts processes when secrets are renewed.
+
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Not handling credential renewal**
+
+Dynamic credentials have a TTL. If your application holds a database connection for longer than the TTL, the underlying database user will be deleted and all queries will fail. Either use short-lived connections, implement credential renewal, or use a connection pool that handles credential rotation.
+
+**Mistake 2: Not revoking leases**
+
+When a service shuts down, it should explicitly revoke its Vault leases. If it doesn't, those credentials remain active until their TTL expires. Vault Agent handles this automatically.
+
+**Mistake 3: Using IAM user credentials instead of STS assume role**
+
+Dynamic IAM user credentials create actual IAM users in your account (temporarily). STS assumed role credentials use your existing IAM role infrastructure and don't create new users. Prefer STS.
+
+---
+
+### Practical Task — Chapter 6
+
+**Task: Implement Vault dynamic secrets for PostgreSQL — verify credentials are unique per request**
+
+**Step 1:** Ensure Vault and RDS are running (from Chapter 5 task).
+
+**Step 2:** Generate credentials three times and verify each is unique:
+
+```bash
+# Generate credentials 3 times
+echo "=== Request 1 ===" && vault read database/creds/myapp-readonly
+sleep 2
+echo "=== Request 2 ===" && vault read database/creds/myapp-readonly
+sleep 2
+echo "=== Request 3 ===" && vault read database/creds/myapp-readonly
+
+# Verify all three usernames and passwords are different
+```
+
+**Step 3:** Connect to the database with one set of credentials, verify the connection works, wait for TTL to expire, verify the credentials no longer work:
+
+```bash
+# Get credentials and store them
+CREDS=$(vault read -format=json database/creds/myapp-readonly)
+USERNAME=$(echo $CREDS | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['username'])")
+PASSWORD=$(echo $CREDS | python3 -c "import sys,json; print(json.load(sys.stdin)['data']['password'])")
+LEASE_ID=$(echo $CREDS | python3 -c "import sys,json; print(json.load(sys.stdin)['lease_id'])")
+
+echo "Username: $USERNAME"
+echo "Lease ID: $LEASE_ID"
+
+# Connect and verify
+PGPASSWORD=$PASSWORD psql -h YOUR_RDS_ENDPOINT -U $USERNAME -d myapp -c "SELECT 'credentials work' AS status;"
+
+# Explicitly revoke the lease early
+vault lease revoke $LEASE_ID
+
+# Try to connect again - should fail
+PGPASSWORD=$PASSWORD psql -h YOUR_RDS_ENDPOINT -U $USERNAME -d myapp -c "SELECT 'this should fail' AS status;"
+```
+
+**Step 4:** Check PostgreSQL to verify the user was dropped:
+
+```bash
+# Connect as admin to verify the dynamic user was removed
+psql -h YOUR_RDS_ENDPOINT -U admin -d myapp \
+  -c "SELECT usename, valuntil FROM pg_catalog.pg_user WHERE usename LIKE 'v-%' ORDER BY valuntil;"
+```
+
+**What to demonstrate:** Evidence of three unique credential sets, a successful connection with fresh credentials, and proof that the credentials are invalid after explicit revocation.
+
+---
+
+### Chapter 6 Summary
+
+- Dynamic secrets are generated on demand and automatically expire — no long-lived credentials exist.
+- The database secret engine creates unique database users per request with configurable TTLs.
+- The AWS secret engine generates temporary IAM credentials (prefer STS assumed role over IAM users).
+- The PKI secret engine acts as a CA, issuing short-lived TLS certificates on demand.
+- In production, use Vault Agent or the Vault Secrets Operator to handle secret fetching transparently.
+
+---
+
+## Chapter 7: OIDC and Workload Identity — GitHub Actions OIDC, K8s Service Account Federation {#chapter-7}
+
+### The Static Credentials Problem in CI/CD
+
+You need your CI/CD pipeline (GitHub Actions, GitLab CI, Jenkins, etc.) to deploy to AWS — push Docker images to ECR, apply Terraform, deploy to EKS. For this, it needs AWS credentials.
+
+The naive approach: create an IAM user, generate access keys, store them as CI/CD secrets.
+
+```yaml
+# GitHub Actions - THE WRONG WAY
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+```
+
+The problems:
+1. Long-lived credentials stored as CI/CD secrets — anyone with access to the repository's secrets can exfiltrate them
+2. If the CI/CD system is compromised, the credentials persist until manually rotated
+3. No automatic expiration
+4. Hard to audit exactly which workflow run used the credentials
+
+**OIDC (OpenID Connect) workload identity solves this.** Instead of storing credentials, your CI/CD system proves its identity to AWS using a cryptographically signed JWT token issued by the CI/CD provider. AWS verifies the token's signature (using the provider's public key), validates the claims, and issues a short-lived AWS session. No stored credentials. No access keys.
+
+---
+
+### How OIDC Works (The Mechanism)
+
+OpenID Connect is an identity protocol built on top of OAuth 2.0. The key concept is the **identity token (JWT)** — a signed JSON document that proves who the requester is.
+
+**The flow:**
+
+```
+GitHub Actions Workflow Starts
+          │
+          ▼
+GitHub's OIDC Provider issues a JWT token to the workflow
+The JWT contains claims like:
+  - iss: "https://token.actions.githubusercontent.com"
+  - sub: "repo:myorg/myrepo:ref:refs/heads/main"
+  - aud: "sts.amazonaws.com"
+  - exp: (short expiry, usually 10 minutes)
+          │
+          ▼
+Workflow calls AWS STS with: AssumeRoleWithWebIdentity
+  - roleArn: the IAM role to assume
+  - webIdentityToken: the JWT from GitHub
+          │
+          ▼
+AWS STS verifies the JWT:
+  1. Fetches GitHub's OIDC public keys from https://token.actions.githubusercontent.com/.well-known/jwks
+  2. Verifies the JWT signature
+  3. Validates the claims (audience, issuer, expiry)
+  4. Checks the IAM role's trust policy conditions
+          │
+          ▼
+AWS STS returns short-lived credentials:
+  - aws_access_key_id
+  - aws_secret_access_key
+  - aws_session_token
+  - expiration: (typically 1 hour)
+          │
+          ▼
+Workflow uses these credentials for AWS operations
+Credentials expire automatically at the end of the session
+```
+
+---
+
+### Configuring OIDC for GitHub Actions → AWS
+
+**Step 1: Create an OIDC Identity Provider in AWS**
+
+First, tell AWS to trust GitHub's OIDC provider:
+
+```bash
+# Create the OIDC provider (one-time setup per AWS account)
+aws iam create-open-id-connect-provider \
+  --url "https://token.actions.githubusercontent.com" \
+  --client-id-list "sts.amazonaws.com" \
+  --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
+
+# The thumbprint is the SHA1 of the GitHub OIDC certificate
+# You can verify it, but AWS doesn't actually validate it for GitHub's provider
+# AWS uses their own verification of the well-known JWKS endpoint
+```
+
+**Step 2: Create an IAM role with a trust policy that allows GitHub to assume it**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
       "Effect": "Allow",
       "Principal": {
-        "Federated": "arn:aws:iam::ACCOUNT:oidc-provider/token.actions.githubusercontent.com"
+        "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
       },
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:*"
         }
       }
     }
@@ -2731,49 +2560,51 @@ Create a role that GitHub Actions can assume. The trust policy specifies which r
 }
 ```
 
-Save this as `github-oidc-trust.json` and create the role:
+**Understanding the condition:**
 
-```bash
-aws iam create-role \
-  --role-name GitHubActionsDeployRole \
-  --assume-role-policy-document file://github-oidc-trust.json \
-  --description "Role for GitHub Actions OIDC authentication"
+- `aud: "sts.amazonaws.com"` — the JWT must have been requested for the STS audience (not for some other service)
+- `sub: "repo:myorg/myrepo:*"` — only workflows from the `myorg/myrepo` repository can assume this role
 
-# Attach permissions the role needs
-aws iam attach-role-policy \
-  --role-name GitHubActionsDeployRole \
-  --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy  # adjust as needed
-```
-
-A more flexible condition allows any branch or event type from a repository:
+You can make the `sub` condition more restrictive:
 
 ```json
-"Condition": {
-  "StringEquals": {
-    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-  },
-  "StringLike": {
-    "token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:*"
-  }
-}
+// Only from a specific branch
+"token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:ref:refs/heads/main"
+
+// Only from a specific environment
+"token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:environment:production"
+
+// Only from pull requests
+"token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:pull_request"
 ```
 
-Be careful: `StringLike` with `*` accepts any branch, tag, or event from that repository. Use the exact `sub` pattern for production deployments to prevent code from feature branches deploying to production.
+```bash
+# Create the role
+aws iam create-role \
+  --role-name "GitHubActionsDeployRole" \
+  --assume-role-policy-document file://github-trust-policy.json \
+  --description "Role assumed by GitHub Actions via OIDC"
 
-### Step 3: Configure the GitHub Actions Workflow
+# Attach the deployment permissions
+aws iam attach-role-policy \
+  --role-name "GitHubActionsDeployRole" \
+  --policy-arn "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"  # Replace with your actual policy
+```
+
+**Step 3: Configure the GitHub Actions workflow**
 
 ```yaml
 # .github/workflows/deploy.yml
+
 name: Deploy to EKS
 
 on:
   push:
     branches: [main]
 
-# REQUIRED: Grant the workflow permission to request the OIDC token
 permissions:
-  id-token: write    # Required for OIDC
-  contents: read     # Required to checkout code
+  id-token: write    # Required: allows the workflow to request an OIDC token
+  contents: read     # Required: allows checking out code
 
 jobs:
   deploy:
@@ -2786,65 +2617,67 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::ACCOUNT:role/GitHubActionsDeployRole
-          aws-region: eu-west-1
-          # No access keys stored anywhere!
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsDeployRole
+          aws-region: us-east-1
+          # role-session-name is optional but useful for CloudTrail
+          role-session-name: GitHubActions-${{ github.run_id }}
       
       - name: Verify AWS identity
         run: aws sts get-caller-identity
       
-      - name: Update kubeconfig for EKS
-        run: |
-          aws eks update-kubeconfig \
-            --name my-cluster \
-            --region eu-west-1
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
       
-      - name: Deploy to EKS
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          kubectl apply -f k8s/
+          docker build -t $ECR_REGISTRY/myapp:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/myapp:$IMAGE_TAG
+      
+      - name: Update EKS deployment
+        run: |
+          aws eks update-kubeconfig --name my-cluster --region us-east-1
+          kubectl set image deployment/myapp myapp=$ECR_REGISTRY/myapp:$IMAGE_TAG
           kubectl rollout status deployment/myapp
 ```
 
-The `aws-actions/configure-aws-credentials` action handles the entire OIDC exchange: it requests a token from GitHub's OIDC provider, passes it to AWS STS's `AssumeRoleWithWebIdentity` API, and sets the temporary credentials as environment variables for subsequent steps.
+No credentials stored anywhere. The `aws-actions/configure-aws-credentials@v4` action handles requesting the OIDC token from GitHub and calling AWS STS. The resulting credentials exist only in the workflow run's environment and expire when the job ends.
 
-No AWS credentials are stored in the repository. No secrets need to be rotated.
+---
 
-## Kubernetes Service Account Federation (IRSA)
+### Kubernetes Service Account Federation
 
-Applications running in Kubernetes on EKS can use a similar OIDC mechanism to access AWS services. This feature is called **IAM Roles for Service Accounts (IRSA)**.
+The same OIDC concept works for pods running in Kubernetes. Instead of giving your pods static AWS credentials, you associate a Kubernetes service account with an IAM role via OIDC.
 
-Without IRSA, every pod on a node shares the node's IAM role. If any pod on that node is compromised, it can use the node's IAM permissions — which are often broad because many different services share the same nodes.
+This is called **IAM Roles for Service Accounts (IRSA)** on EKS.
 
-With IRSA, each pod can assume a specific, narrowly-scoped IAM role. The IAM credentials are injected into the pod by an EKS-managed webhook, and they rotate automatically.
+**How it works:**
 
-### How IRSA Works
+1. EKS has an OIDC provider (each cluster gets a unique OIDC endpoint)
+2. You create an IAM role whose trust policy allows a specific Kubernetes service account to assume it
+3. Kubernetes injects a service account JWT token into pods that use that service account
+4. The AWS SDK in the pod automatically uses the injected token to call STS and get temporary credentials
 
-1. EKS acts as an OIDC identity provider for the cluster
-2. Each Kubernetes service account gets a projected service account token (a JWT) mounted into pods
-3. AWS STS accepts that token and exchanges it for temporary IAM credentials
-4. A webhook on the EKS control plane automatically sets the `AWS_ROLE_ARN` and `AWS_WEB_IDENTITY_TOKEN_FILE` environment variables in pods that have the IRSA annotation
-
-### Setting Up IRSA
-
-**Step 1: Enable the OIDC provider for your EKS cluster.**
+**Step 1: Find your EKS cluster's OIDC provider URL**
 
 ```bash
-# Get the OIDC issuer URL for your cluster
-OIDC_URL=$(aws eks describe-cluster \
+# Get the OIDC issuer URL
+aws eks describe-cluster \
   --name my-cluster \
   --query "cluster.identity.oidc.issuer" \
-  --output text)
+  --output text
+# Output: https://oidc.eks.us-east-1.amazonaws.com/id/XXXXXXXXXXXX
 
-echo "OIDC URL: $OIDC_URL"
-# Example: https://oidc.eks.eu-west-1.amazonaws.com/id/ABCDEF1234567890
-
-# Create the OIDC provider in IAM (eksctl can do this too)
+# Create the OIDC provider in IAM (if not already done)
 eksctl utils associate-iam-oidc-provider \
   --cluster my-cluster \
   --approve
 ```
 
-**Step 2: Create the IAM role with a trust policy for the service account.**
+**Step 2: Create an IAM role for the service account**
 
 ```json
 {
@@ -2853,13 +2686,13 @@ eksctl utils associate-iam-oidc-provider \
     {
       "Effect": "Allow",
       "Principal": {
-        "Federated": "arn:aws:iam::ACCOUNT:oidc-provider/oidc.eks.eu-west-1.amazonaws.com/id/ABCDEF1234567890"
+        "Federated": "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/XXXXXXXXXXXX"
       },
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "oidc.eks.eu-west-1.amazonaws.com/id/ABCDEF1234567890:aud": "sts.amazonaws.com",
-          "oidc.eks.eu-west-1.amazonaws.com/id/ABCDEF1234567890:sub": "system:serviceaccount:production:myapp"
+          "oidc.eks.us-east-1.amazonaws.com/id/XXXXXXXXXXXX:aud": "sts.amazonaws.com",
+          "oidc.eks.us-east-1.amazonaws.com/id/XXXXXXXXXXXX:sub": "system:serviceaccount:myapp:myapp-service-account"
         }
       }
     }
@@ -2867,174 +2700,205 @@ eksctl utils associate-iam-oidc-provider \
 }
 ```
 
-The `sub` condition `system:serviceaccount:NAMESPACE:SERVICE_ACCOUNT_NAME` ensures that only pods in the specific namespace using the specific service account can assume this role.
+The `sub` claim restricts this to the service account named `myapp-service-account` in the `myapp` namespace. Only pods using that service account can assume this role.
 
 ```bash
+# Create the IAM role
 aws iam create-role \
-  --role-name MyAppS3Role \
-  --assume-role-policy-document file://irsa-trust.json
+  --role-name "MyAppS3AccessRole" \
+  --assume-role-policy-document file://eks-trust-policy.json
 
+# Attach permissions
 aws iam attach-role-policy \
-  --role-name MyAppS3Role \
-  --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+  --role-name "MyAppS3AccessRole" \
+  --policy-arn "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
 ```
 
-**Step 3: Annotate the Kubernetes service account.**
+**Step 3: Create and annotate the Kubernetes service account**
 
 ```yaml
-# myapp-serviceaccount.yaml
+# service-account.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: myapp
-  namespace: production
+  name: myapp-service-account
+  namespace: myapp
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/MyAppS3Role
+    # This annotation links the K8s service account to the IAM role
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/MyAppS3AccessRole
 ```
 
 ```bash
-kubectl apply -f myapp-serviceaccount.yaml
+kubectl apply -f service-account.yaml
 ```
 
-**Step 4: Use the service account in your pod/deployment.**
+**Step 4: Use the service account in a deployment**
 
 ```yaml
-# myapp-deployment.yaml
+# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: myapp
-  namespace: production
+  namespace: myapp
 spec:
   replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
   template:
+    metadata:
+      labels:
+        app: myapp
     spec:
-      serviceAccountName: myapp  # This is all that's needed
+      serviceAccountName: myapp-service-account  # Use the annotated service account
       containers:
-      - name: myapp
-        image: myapp:latest
-        # No AWS credentials environment variables needed
-        # The EKS webhook automatically injects:
-        # AWS_ROLE_ARN=arn:aws:iam::ACCOUNT:role/MyAppS3Role
-        # AWS_WEB_IDENTITY_TOKEN_FILE=/var/run/secrets/eks.amazonaws.com/serviceaccount/token
+        - name: myapp
+          image: myapp:latest
+          # No AWS credentials needed - the SDK auto-detects IRSA credentials
+          # AWS_WEB_IDENTITY_TOKEN_FILE and AWS_ROLE_ARN are injected automatically
 ```
 
-The AWS SDK automatically detects these environment variables and uses the OIDC token to request temporary credentials from STS. Your application code needs no special authentication logic — it just calls AWS APIs normally.
+When the pod starts, EKS automatically injects:
+- `AWS_WEB_IDENTITY_TOKEN_FILE` — path to the service account token
+- `AWS_ROLE_ARN` — the IAM role ARN from the annotation
 
-## Common Mistakes Beginners Make
-
-**Mistake 1: Using overly permissive sub conditions.** `"sub": "repo:myorg/*"` allows any repository in your organisation to assume the role. Scope the condition to specific repositories and branches.
-
-**Mistake 2: Forgetting `permissions: id-token: write` in the workflow.** Without this, GitHub will not issue an OIDC token and the authentication step will fail with a cryptic error.
-
-**Mistake 3: Not matching the service account namespace exactly.** The IRSA trust policy condition must match both the namespace AND the service account name. A typo in either means the pod cannot assume the role.
-
-**Mistake 4: Assuming IRSA works in non-EKS Kubernetes.** IRSA is specific to EKS. For other Kubernetes distributions, you would use Vault's Kubernetes auth method or similar tools.
-
-## How This Works in the Real World
-
-OIDC and workload identity are now the standard approach at mature organisations. A large company using GitHub Actions and EKS might have:
-
-- Zero long-lived IAM access keys in their GitHub repositories — all 200+ workflows use OIDC
-- Every EKS deployment uses IRSA — no EC2 node roles with broad permissions
-- IAM roles scoped per microservice — the payment service role can only access payment-related resources
-- Conditions that restrict production deployments to main branch only
-
-## Practical Task: Configure OIDC Between GitHub Actions and AWS
-
-**Scenario:** Deploy an application to EKS without any static AWS credentials stored in GitHub.
-
-**Step 1:** Create the OIDC provider and IAM role using the commands from the "Setting Up OIDC" section above. Substitute your actual AWS account ID and GitHub organisation/repository.
-
-**Step 2:** Create a workflow file in your repository:
-
-```yaml
-# .github/workflows/oidc-deploy.yml
-name: OIDC EKS Deploy Test
-
-on:
-  workflow_dispatch:  # Manual trigger for testing
-
-permissions:
-  id-token: write
-  contents: read
-
-jobs:
-  test-oidc:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::YOUR_ACCOUNT:role/GitHubActionsDeployRole
-          aws-region: eu-west-1
-      
-      - name: Verify identity
-        run: |
-          echo "AWS identity:"
-          aws sts get-caller-identity
-          echo ""
-          echo "No static credentials were used - pure OIDC!"
-      
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name YOUR_CLUSTER --region eu-west-1
-      
-      - name: Deploy application
-        run: |
-          kubectl apply -f k8s/manifests/
-          kubectl rollout status deployment/myapp -n production
-```
-
-**Step 3:** Go to GitHub Actions, trigger the workflow manually, and verify the `aws sts get-caller-identity` output shows the OIDC-assumed role ARN, not an IAM user.
-
-**Step 4:** Check CloudTrail for the `AssumeRoleWithWebIdentity` event and observe the `sub` claim from the OIDC token, which includes the repository and branch information.
-
-## Chapter Summary
-
-- OIDC workload identity eliminates static CI/CD credentials. The identity of the workload (repository, branch, service account) is the secret.
-- GitHub Actions uses its OIDC provider to issue JWTs. AWS trusts these JWTs when you configure the OIDC identity provider and a role with appropriate trust conditions.
-- IRSA gives EKS pods fine-grained IAM roles based on their Kubernetes service account. No credentials are stored; the EKS webhook injects OIDC token paths automatically.
-- Always scope trust conditions tightly: specific repository, specific branch, specific namespace and service account.
-- Check CloudTrail for AssumeRoleWithWebIdentity events to verify OIDC is working correctly and to audit usage.
+The AWS SDK reads these and automatically calls STS to get credentials. Your application code doesn't need to do anything special — standard `boto3.client('s3')` works without any explicit credential configuration.
 
 ---
 
-# Chapter 8: Secrets in Containers — Kubernetes Secrets, External Secrets Operator, Sealed Secrets {#chapter-8}
+### How This Works in the Real World
 
-## The Container Secrets Problem
+OIDC federation is now the standard approach for all cloud workload identity:
 
-Containers introduce new challenges for secrets management. A container image is built once and deployed many times — across development, staging, and production environments. You cannot bake environment-specific secrets into the image (besides the obvious security problem, you would need a different image per environment). Secrets must be injected at runtime.
+- **GitHub Actions → AWS:** OIDC, as described above
+- **GitLab CI → AWS:** GitLab has its own OIDC provider, same mechanism
+- **EKS pods → AWS:** IRSA (IAM Roles for Service Accounts)
+- **GKE pods → GCP:** Workload Identity (same concept, GCP's implementation)
+- **GitHub Actions → Vault:** OIDC to Vault, then Vault issues secrets
 
-Kubernetes provides a built-in mechanism for this: the `Secret` resource. But Kubernetes Secrets have a dirty secret of their own: by default, they are only base64-encoded, not encrypted. Storing a Kubernetes Secret in Git is almost as bad as committing a plaintext password.
+The goal everywhere is the same: eliminate static credentials from CI/CD systems and containerised workloads.
 
-This chapter covers the Kubernetes-native approach, its limitations, and two patterns for doing it properly.
+---
 
-## Kubernetes Secrets: The Native Approach
+### Common Mistakes Beginners Make
 
-A Kubernetes Secret is a key-value store for sensitive data. You create it in the cluster and reference it from pods.
+**Mistake 1: Too-broad `sub` conditions in IAM trust policies**
+
+```json
+// BAD: Any repo in the org can assume this role
+"token.actions.githubusercontent.com:sub": "repo:myorg/*"
+
+// GOOD: Only this specific repo and only from protected branches
+"token.actions.githubusercontent.com:sub": "repo:myorg/myrepo:ref:refs/heads/main"
+```
+
+**Mistake 2: Not setting `id-token: write` permission in GitHub Actions**
+
+GitHub Actions workflows don't have OIDC token permissions by default. You must explicitly request them:
 
 ```yaml
-# secret.yaml - DO NOT commit this to Git
+permissions:
+  id-token: write
+  contents: read
+```
+
+**Mistake 3: Confusing the trust policy `Principal` with access permissions**
+
+The trust policy controls *who can assume the role*. The permission policies control *what the role can do*. Both need to be correct.
+
+---
+
+### Practical Task — Chapter 7
+
+**Task: Configure OIDC between GitHub Actions and AWS — deploy to EKS without static AWS credentials**
+
+**Step 1:** Follow the steps in this chapter to create the OIDC provider and IAM role.
+
+**Step 2:** Write a GitHub Actions workflow that:
+1. Uses OIDC to get AWS credentials (no stored secrets)
+2. Calls `aws sts get-caller-identity` to prove it worked
+3. Pushes a Docker image to ECR
+4. Deploys to EKS using `kubectl set image`
+
+**Step 3:** Verify in CloudTrail that the `AssumeRoleWithWebIdentity` call appears with the GitHub-issued token as the identity.
+
+```bash
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
+  --start-time "2024-01-01T00:00:00" \
+  --query 'Events[*].{Time:EventTime, User:Username, Role:Resources[0].ResourceName}' \
+  --output table
+```
+
+**What to demonstrate:** The workflow run log showing OIDC authentication, no AWS_ACCESS_KEY_ID in the workflow configuration, and the CloudTrail entry for the role assumption.
+
+---
+
+### Chapter 7 Summary
+
+- OIDC workload identity eliminates the need for static credentials in CI/CD pipelines and container workloads.
+- GitHub Actions, GitLab CI, Kubernetes service accounts all support OIDC federation with AWS.
+- The mechanism: the CI/CD system issues a JWT → JWT is presented to AWS STS → AWS verifies the JWT signature and claims → STS issues short-lived credentials.
+- Always scope IAM trust policies to specific repositories, branches, and environments — not broad wildcards.
+- IRSA (IAM Roles for Service Accounts) enables pods to have AWS permissions without any credential management by the developer.
+
+---
+
+## Chapter 8: Secrets in Containers — K8s Secrets, External Secrets Operator, Sealed Secrets {#chapter-8}
+
+### The Challenge of Secrets in Kubernetes
+
+Running applications in Kubernetes introduces a specific challenge: your containerised applications need secrets (database passwords, API keys, TLS certificates), but the mechanisms Kubernetes provides for managing them have significant limitations.
+
+Kubernetes has a built-in resource called a `Secret`. Let's understand what it is, what its limitations are, and what the production-grade alternatives look like.
+
+---
+
+### Kubernetes Secrets: The Basics (and the Problems)
+
+A Kubernetes Secret is a cluster resource for storing sensitive data. Pods can consume secrets as environment variables or as mounted files.
+
+**Creating a secret:**
+
+```bash
+# Create a secret imperatively (for testing only)
+kubectl create secret generic db-credentials \
+  --from-literal=username=admin \
+  --from-literal=password=SuperSecretPassword123! \
+  --namespace myapp
+
+# Create a secret from a YAML file
+cat > db-secret.yaml << 'EOF'
 apiVersion: v1
 kind: Secret
 metadata:
-  name: database-credentials
-  namespace: production
+  name: db-credentials
+  namespace: myapp
 type: Opaque
 data:
-  # Values must be base64 encoded
-  # echo -n 'app_user' | base64
-  username: YXBwX3VzZXI=
-  # echo -n 'MySecretPassword123' | base64
-  password: TXlTZWNyZXRQYXNzd29yZDEyMw==
+  # Values must be base64-encoded
+  username: YWRtaW4=          # echo -n "admin" | base64
+  password: U3VwZXJTZWNyZXRQYXNzd29yZDEyMyE=   # echo -n "SuperSecretPassword123!" | base64
+EOF
+
+kubectl apply -f db-secret.yaml
 ```
 
-Note: `Opaque` is the generic type. Kubernetes also has types for specific use cases: `kubernetes.io/tls` for TLS certificates, `kubernetes.io/dockerconfigjson` for registry credentials, and others.
+**CRITICAL WARNING:** Kubernetes Secrets are **base64-encoded, not encrypted**. Base64 is an encoding format, not encryption. Anyone who can read the secret object can trivially decode the value:
 
-Reference the secret in a pod as environment variables:
+```bash
+echo "U3VwZXJTZWNyZXRQYXNzd29yZDEyMyE=" | base64 --decode
+# Output: SuperSecretPassword123!
+```
+
+By default, secrets are stored as plain text in `etcd` (Kubernetes' database). This means:
+
+- Anyone with etcd access has all secrets
+- Backups of etcd contain all secrets in plain text
+- Secrets committed to Git (as YAML files) expose values to anyone with repo access
+
+**Consuming secrets in a pod:**
 
 ```yaml
 apiVersion: apps/v1
@@ -3045,355 +2909,293 @@ spec:
   template:
     spec:
       containers:
-      - name: myapp
-        image: myapp:latest
-        env:
-        - name: DB_USERNAME
-          valueFrom:
-            secretKeyRef:
-              name: database-credentials
-              key: username
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: database-credentials
-              key: password
+        - name: myapp
+          image: myapp:latest
+          
+          # Option 1: Inject as environment variables
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+          
+          # Option 2: Mount as files (generally preferred)
+          volumeMounts:
+            - name: db-creds
+              mountPath: /etc/secrets
+              readOnly: true
+      
+      volumes:
+        - name: db-creds
+          secret:
+            secretName: db-credentials
+            # Files at /etc/secrets/username and /etc/secrets/password
 ```
 
-Or mount the secret as files in a volume:
+**Enabling etcd encryption at rest** (partial solution):
 
 ```yaml
-containers:
-- name: myapp
-  image: myapp:latest
-  volumeMounts:
-  - name: db-credentials
-    mountPath: /etc/secrets/database
-    readOnly: true
-volumes:
-- name: db-credentials
-  secret:
-    secretName: database-credentials
+# encryption-config.yaml
+# Applied at the API server level
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+      - secrets
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: <base64-encoded-32-byte-key>
+      - identity: {}  # Fallback for unencrypted secrets
 ```
 
-When mounted as files, each key in the secret becomes a file. The `password` key creates a file at `/etc/secrets/database/password` containing the decoded value.
+This helps, but the encryption key is stored on the API server nodes — it's better than nothing, but it doesn't solve the "secrets in Git" or "access control" problems.
 
-### The Problem: Encryption at Rest
+---
 
-By default, Kubernetes stores Secret data in etcd without encryption. Anyone with read access to etcd (or a backup of etcd) can read all your secrets. In managed Kubernetes services (EKS, GKE, AKS), you can enable etcd encryption at rest — and you should.
+### External Secrets Operator
 
-For EKS:
+The External Secrets Operator (ESO) is the production-grade solution for secrets in Kubernetes. It bridges external secrets management systems (AWS Secrets Manager, AWS Parameter Store, HashiCorp Vault, GCP Secret Manager, Azure Key Vault, etc.) with Kubernetes Secrets.
+
+**How it works:**
+
+1. You store your secret in AWS Secrets Manager (or Vault, or Parameter Store)
+2. You create an `ExternalSecret` resource in Kubernetes that references the external secret
+3. The ESO controller (running as a pod in your cluster) reads the external secret using appropriate IAM/auth credentials
+4. The ESO controller creates a Kubernetes Secret in your namespace with the fetched values
+5. ESO refreshes the Kubernetes Secret on a configurable interval
+
+Your application consumes a normal Kubernetes Secret — it doesn't know or care that it came from Secrets Manager. The security benefits: the source of truth is Secrets Manager (with all its audit logging, rotation, and access control), and the K8s Secret is just a short-lived cache.
+
+**Installation:**
 
 ```bash
-# Enable envelope encryption for secrets using a KMS key
-aws eks create-cluster \
-  --name my-cluster \
-  --encryption-config '[
-    {
-      "resources": ["secrets"],
-      "provider": {
-        "keyArn": "arn:aws:kms:eu-west-1:ACCOUNT:key/KEY-ID"
-      }
-    }
-  ]' \
-  # ... other parameters
-```
-
-### The Bigger Problem: GitOps and Secret Manifests
-
-The real challenge is operational. If you manage your Kubernetes configuration with GitOps (storing all manifests in Git and applying them to the cluster), Secret manifests cannot go into Git. This breaks the "everything in Git" principle that makes GitOps powerful.
-
-Two tools solve this in different ways: Sealed Secrets and External Secrets Operator.
-
-## Sealed Secrets: Encrypting Secrets for Git
-
-Sealed Secrets is a Kubernetes controller that allows you to encrypt a Secret into a `SealedSecret` — an encrypted form that is safe to commit to Git. The controller in the cluster decrypts it back into a regular Kubernetes Secret.
-
-### How It Works
-
-1. You install the Sealed Secrets controller in your cluster
-2. The controller generates a public/private key pair
-3. You use the `kubeseal` CLI tool to encrypt a Secret using the controller's public key
-4. The resulting `SealedSecret` can be committed to Git
-5. When you apply the `SealedSecret` to the cluster, the controller decrypts it using its private key and creates a regular Kubernetes Secret
-
-Only the controller in your cluster can decrypt the sealed secret. Even if someone steals your Git repository, they cannot decrypt the secrets without access to the cluster.
-
-### Installing Sealed Secrets
-
-```bash
-# Install the controller
-helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
-helm install sealed-secrets sealed-secrets/sealed-secrets \
-  --namespace kube-system \
-  --create-namespace
-
-# Install the kubeseal CLI
-# On macOS:
-brew install kubeseal
-
-# On Linux:
-KUBESEAL_VERSION=$(curl -s https://api.github.com/repos/bitnami-labs/sealed-secrets/releases/latest | jq -r '.tag_name[1:]')
-curl -OL "https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION}/kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz"
-tar -xvzf kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz kubeseal
-sudo install -m 755 kubeseal /usr/local/bin/kubeseal
-```
-
-### Sealing a Secret
-
-```bash
-# Create a regular secret manifest (do not apply it)
-kubectl create secret generic database-credentials \
-  --from-literal=username=app_user \
-  --from-literal=password=MySecretPassword123 \
-  --namespace=production \
-  --dry-run=client \
-  -o yaml > secret.yaml
-
-# Seal it (requires connection to the cluster to fetch the public key)
-kubeseal \
-  --controller-name=sealed-secrets \
-  --controller-namespace=kube-system \
-  --format yaml \
-  < secret.yaml \
-  > sealed-secret.yaml
-
-# Inspect the sealed secret - it contains only encrypted data
-cat sealed-secret.yaml
-# The encryptedData fields contain ciphertext safe to commit
-
-# Delete the plaintext secret file!
-rm secret.yaml
-
-# Commit and apply the sealed secret
-git add sealed-secret.yaml
-git commit -m "Add sealed database credentials"
-kubectl apply -f sealed-secret.yaml
-
-# The controller automatically creates the Kubernetes Secret
-kubectl get secret database-credentials -n production
-```
-
-The `SealedSecret` manifest looks like this:
-
-```yaml
-apiVersion: bitnami.com/v1alpha1
-kind: SealedSecret
-metadata:
-  name: database-credentials
-  namespace: production
-spec:
-  encryptedData:
-    username: AgCKjH8k... # encrypted base64
-    password: AgBn3p4q... # encrypted base64
-  template:
-    metadata:
-      name: database-credentials
-      namespace: production
-    type: Opaque
-```
-
-This is what lives in Git. The actual values are never visible.
-
-### Scope
-
-By default, a `SealedSecret` is namespace-scoped — it can only be decrypted in the specific namespace it was created for. This prevents someone from copying a SealedSecret from the `production` namespace and applying it in the `staging` namespace to extract credentials.
-
-## External Secrets Operator: Syncing From External Vaults
-
-Sealed Secrets solves the GitOps problem but introduces a new one: your secrets are now encrypted with the cluster's key. If you recreate the cluster or rotate the Sealed Secrets key, you need to re-seal all your secrets. And you still have no automatic rotation.
-
-The External Secrets Operator (ESO) takes a different approach: it does not store secrets in Git at all. Instead, you declare *references* to secrets in your external secret manager (Vault, AWS Secrets Manager, Parameter Store, GCP Secret Manager, etc.), and ESO synchronises them into Kubernetes Secrets.
-
-### How ESO Works
-
-```
-External Secret Manager               Kubernetes Cluster
-(Vault / AWS Secrets Manager)                  │
-              │                                │
-              │   ExternalSecret (in Git)      │
-              │   references: secretstore/path  │
-              │                                │
-              ▼                                │
-       ESO Controller ──────── creates ──────► Kubernetes Secret
-              │
-              └── periodically refreshes
-                  (secret rotation is automatic)
-```
-
-The beauty of this approach: what you store in Git is only a pointer to the secret, not the secret itself (not even encrypted). The ESO controller handles fetching and synchronising the actual values.
-
-### Installing ESO
-
-```bash
+# Install External Secrets Operator using Helm
 helm repo add external-secrets https://charts.external-secrets.io
-helm install external-secrets external-secrets/external-secrets \
+helm repo update
+
+helm install external-secrets \
+  external-secrets/external-secrets \
   --namespace external-secrets \
   --create-namespace \
   --set installCRDs=true
 ```
 
-### Configuring a SecretStore (AWS Secrets Manager)
-
-A `SecretStore` defines how ESO connects to your external secret manager:
+**Step 1: Create a SecretStore — the connection to Secrets Manager**
 
 ```yaml
-# secretstore-aws.yaml
+# secretstore.yaml
+# A SecretStore defines HOW to connect to the external secret provider
+# SecretStore is namespaced; ClusterSecretStore is cluster-wide
 apiVersion: external-secrets.io/v1beta1
 kind: SecretStore
 metadata:
-  name: aws-secrets-manager
-  namespace: production
+  name: aws-secretsmanager
+  namespace: myapp
 spec:
   provider:
     aws:
-      service: SecretsManager
-      region: eu-west-1
+      service: SecretsManager   # Or ParameterStore
+      region: us-east-1
       auth:
+        # Use IRSA (IAM Roles for Service Accounts) - no static credentials
         jwt:
           serviceAccountRef:
-            name: external-secrets-sa  # IRSA service account
+            name: external-secrets-sa
 ```
 
-Or using a ClusterSecretStore (cluster-wide, usable from any namespace):
-
 ```yaml
-apiVersion: external-secrets.io/v1beta1
-kind: ClusterSecretStore
+# service-account.yaml
+# This service account has an IAM role annotation for IRSA
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: vault-backend
-spec:
-  provider:
-    vault:
-      server: "https://vault.internal:8200"
-      path: "secret"
-      version: "v2"
-      auth:
-        kubernetes:
-          mountPath: "kubernetes"
-          role: "external-secrets"
-          serviceAccountRef:
-            name: external-secrets
-            namespace: external-secrets
+  name: external-secrets-sa
+  namespace: myapp
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/ExternalSecretsRole
 ```
 
-### Creating an ExternalSecret
+The IAM role `ExternalSecretsRole` needs:
+```json
+{
+  "Effect": "Allow",
+  "Action": [
+    "secretsmanager:GetSecretValue",
+    "secretsmanager:DescribeSecret"
+  ],
+  "Resource": "arn:aws:secretsmanager:us-east-1:*:secret:prod/myapp/*"
+}
+```
 
-This is what you commit to Git instead of a Secret manifest:
+**Step 2: Create an ExternalSecret resource**
 
 ```yaml
-# externalsecret-database.yaml  (safe to commit to Git)
+# external-secret.yaml
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: database-credentials
-  namespace: production
+  name: db-credentials
+  namespace: myapp
 spec:
-  # How often to refresh the secret from the external source
-  refreshInterval: 1m
+  # Refresh interval - how often ESO checks for updates in Secrets Manager
+  refreshInterval: 1h
   
   # Reference to the SecretStore
   secretStoreRef:
-    name: aws-secrets-manager
+    name: aws-secretsmanager
     kind: SecretStore
   
-  # The Kubernetes Secret to create
+  # The Kubernetes Secret that ESO will create/manage
   target:
-    name: database-credentials
-    creationPolicy: Owner
+    name: db-credentials     # Name of the K8s Secret to create
+    creationPolicy: Owner    # ESO owns and manages this secret
   
-  # The data to fetch from the external source
+  # Which external secrets to fetch and how to map them
   data:
-  - secretKey: username    # key in the Kubernetes Secret
-    remoteRef:
-      key: production/myapp/database  # name of the secret in Secrets Manager
-      property: username              # JSON field within the secret
-  
-  - secretKey: password
-    remoteRef:
-      key: production/myapp/database
-      property: password
+    - secretKey: username    # Key in the K8s Secret
+      remoteRef:
+        key: prod/myapp/database    # Secret name in Secrets Manager
+        property: username          # JSON key within the secret
+    - secretKey: password
+      remoteRef:
+        key: prod/myapp/database
+        property: password
+    - secretKey: host
+      remoteRef:
+        key: prod/myapp/database
+        property: host
 ```
 
-Apply this to the cluster, and ESO fetches the values from AWS Secrets Manager and creates the Kubernetes Secret. Every minute, ESO checks for updates — if AWS Secrets Manager rotates the password, ESO automatically updates the Kubernetes Secret within the refresh interval.
+```bash
+kubectl apply -f secretstore.yaml
+kubectl apply -f external-secret.yaml
 
-### Fetching an Entire Secret at Once
+# Check the status of the ExternalSecret
+kubectl get externalsecret db-credentials -n myapp
 
-If your secret in Secrets Manager contains JSON with multiple fields, you can sync all of them at once:
+# Verify the K8s Secret was created
+kubectl get secret db-credentials -n myapp
+
+# View the secret (it's still base64 in K8s, but the source is Secrets Manager)
+kubectl get secret db-credentials -n myapp -o jsonpath='{.data.username}' | base64 --decode
+```
+
+When the secret in Secrets Manager is rotated, ESO fetches the new value on the next refresh interval and updates the Kubernetes Secret automatically.
+
+---
+
+### Sealed Secrets: Secrets Safe for Git
+
+Sometimes you want to store Kubernetes Secret manifests in Git — for GitOps workflows. Sealed Secrets solves this by encrypting secrets with a cluster-specific public key. Only the cluster that has the corresponding private key can decrypt them.
+
+**How it works:**
+
+1. The Sealed Secrets controller runs in the cluster and holds a private key
+2. You use the `kubeseal` CLI to encrypt a Secret manifest with the cluster's public key
+3. The encrypted `SealedSecret` manifest is safe to commit to Git — without the cluster's private key, it's useless
+4. When applied to the cluster, the controller decrypts it and creates the corresponding Secret
+
+**Installation:**
+
+```bash
+# Install the Sealed Secrets controller
+helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
+helm repo update
+
+helm install sealed-secrets \
+  sealed-secrets/sealed-secrets \
+  --namespace sealed-secrets \
+  --create-namespace
+
+# Install the kubeseal CLI
+# macOS
+brew install kubeseal
+
+# Linux
+KUBESEAL_VERSION=$(curl -s https://api.github.com/repos/bitnami-labs/sealed-secrets/tags | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['name'][1:])")
+curl -L "https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION}/kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz" | tar xz
+sudo install kubeseal /usr/local/bin/
+```
+
+**Creating a Sealed Secret:**
+
+```bash
+# First, create a regular Kubernetes Secret manifest (DO NOT COMMIT THIS)
+kubectl create secret generic db-credentials \
+  --from-literal=username=admin \
+  --from-literal=password=SuperSecretPassword123! \
+  --namespace myapp \
+  --dry-run=client \
+  -o yaml > /tmp/db-secret.yaml
+
+# Seal it using the cluster's public key
+kubeseal \
+  --controller-name sealed-secrets \
+  --controller-namespace sealed-secrets \
+  --format yaml \
+  < /tmp/db-secret.yaml \
+  > db-sealed-secret.yaml
+
+# The sealed secret is safe to commit
+cat db-sealed-secret.yaml
+# Output contains encryptedData - useless without the cluster's private key
+
+# Apply it to the cluster
+kubectl apply -f db-sealed-secret.yaml
+
+# The controller decrypts it and creates the Secret
+kubectl get secret db-credentials -n myapp
+```
+
+**Scope options for Sealed Secrets:**
+
+By default, a SealedSecret is tied to a specific namespace and name — it can only be unsealed in the namespace it was created for. You can change this:
+
+```bash
+# Namespace-scoped (default): tied to specific namespace + name
+kubeseal --scope namespace-wide ...
+
+# Cluster-scoped: can be unsealed anywhere in the cluster
+kubeseal --scope cluster-wide ...
+```
+
+---
+
+### Choosing Between the Approaches
+
+| Approach | Best for | Limitations |
+|---------|---------|-------------|
+| Native K8s Secrets | Development, non-sensitive config | Unencrypted in etcd by default, not GitOps-friendly |
+| External Secrets Operator | Production, centralized secrets management, automatic rotation | Requires an external secrets store (Vault, Secrets Manager) |
+| Sealed Secrets | GitOps workflows, storing secret manifests in Git | Still creates K8s Secrets; no rotation; tied to specific cluster |
+
+In mature production environments, you'll see **External Secrets Operator + Secrets Manager or Vault** as the primary approach, with etcd encryption at rest enabled as a defence-in-depth measure.
+
+---
+
+### Practical Task — Chapter 8
+
+**Task: Set up External Secrets Operator in K8s — sync secrets from Vault to K8s Secrets automatically**
+
+**Step 1:** Install ESO (from commands above).
+
+**Step 2:** Create a SecretStore pointing to your Vault deployment (from Chapter 5):
 
 ```yaml
-spec:
-  dataFrom:
-  - extract:
-      key: production/myapp/database
-      # All JSON fields become keys in the Kubernetes Secret
-```
-
-This creates a Kubernetes Secret with keys matching all JSON properties in the secret.
-
-## Comparing the Approaches
-
-| Approach | Stored in Git | Rotation Support | External Dependency | Best For |
-|---|---|---|---|---|
-| Plain Kubernetes Secrets | Never (unsafe) | Manual | None | Development only |
-| Sealed Secrets | Yes (encrypted) | Manual re-seal | Cluster key | Simple GitOps, air-gapped environments |
-| External Secrets Operator | Reference only | Automatic | External secret manager | Production, multi-cluster, automatic rotation |
-
-## Common Mistakes Beginners Make
-
-**Mistake 1: Accidentally committing a plain Kubernetes Secret to Git.** Always use `--dry-run=client` and pipe to `kubeseal` before applying or committing. Set up `git-secrets` (Chapter 10) to catch this automatically.
-
-**Mistake 2: Not enabling etcd encryption.** Kubernetes Secrets at rest in etcd are only base64-encoded without explicit KMS encryption. Enable etcd encryption even if you use Sealed Secrets or ESO.
-
-**Mistake 3: Setting ESO `refreshInterval` too low.** Very frequent refreshes (every few seconds) generate many API calls to your secret manager. Set refresh intervals appropriate to your rotation schedule — if you rotate database passwords monthly, a 5-minute refresh interval is plenty.
-
-**Mistake 4: Granting the ESO service account too many permissions.** ESO only needs access to the specific secrets it manages. Use resource-level IAM policies to restrict it.
-
-## How This Works in the Real World
-
-A mature GitOps workflow with ESO and Vault looks like this:
-
-- All application configuration lives in Git (Helm values, Kubernetes manifests, ExternalSecret definitions)
-- ESO synchronises secrets from Vault into Kubernetes Secrets every minute
-- When Vault rotates a database credential, ESO picks up the change within a minute
-- Applications that mount the Secret as a volume get the new value without a restart (Kubernetes updates mounted secret files automatically within a configurable time window)
-- A developer adding a new secret: creates it in Vault, creates an `ExternalSecret` manifest, commits and opens a pull request — no plaintext secret ever touches Git
-
-## Practical Task: Set Up External Secrets Operator
-
-**Scenario:** Configure ESO in Kubernetes to automatically sync secrets from Vault into Kubernetes Secrets.
-
-**Step 1:** Install ESO (from the commands above).
-
-**Step 2:** Configure Vault Kubernetes auth for ESO.
-
-```bash
-# Create a Vault policy for ESO
-vault policy write external-secrets - <<EOF
-path "secret/data/*" {
-  capabilities = ["read"]
-}
-path "secret/metadata/*" {
-  capabilities = ["read", "list"]
-}
-EOF
-
-# Create a Kubernetes auth role for ESO
-vault write auth/kubernetes/role/external-secrets \
-  bound_service_account_names="external-secrets" \
-  bound_service_account_namespaces="external-secrets" \
-  policies="external-secrets" \
-  ttl=1h
-```
-
-**Step 3:** Create a ClusterSecretStore for Vault.
-
-```bash
-kubectl apply -f - <<EOF
+# vault-secretstore.yaml
 apiVersion: external-secrets.io/v1beta1
-kind: ClusterSecretStore
+kind: SecretStore
 metadata:
   name: vault-backend
+  namespace: myapp
 spec:
   provider:
     vault:
@@ -3403,79 +3205,1752 @@ spec:
       auth:
         kubernetes:
           mountPath: "kubernetes"
-          role: "external-secrets"
+          role: "myapp-eso-role"
           serviceAccountRef:
-            name: external-secrets
-            namespace: external-secrets
-EOF
+            name: external-secrets-sa
 ```
 
-**Step 4:** Create a test secret in Vault.
+**Step 3:** Create an ExternalSecret that fetches from Vault:
 
-```bash
-vault kv put secret/myapp/config \
-  database_password="VaultSecret123!" \
-  api_key="vault-generated-api-key"
-```
-
-**Step 5:** Create an ExternalSecret.
-
-```bash
-kubectl create namespace demo
-
-kubectl apply -f - <<EOF
+```yaml
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: myapp-secrets
-  namespace: demo
+  name: myapp-config
+  namespace: myapp
 spec:
-  refreshInterval: 30s
+  refreshInterval: 10m
   secretStoreRef:
     name: vault-backend
-    kind: ClusterSecretStore
+    kind: SecretStore
   target:
-    name: myapp-secrets
+    name: myapp-config
     creationPolicy: Owner
   dataFrom:
-  - extract:
-      key: myapp/config
+    - extract:
+        key: myapp/config  # Fetches ALL keys from this Vault path
+```
+
+**Step 4:** Update a secret in Vault and verify the K8s Secret updates automatically after the refresh interval.
+
+```bash
+# Update the secret in Vault
+vault kv put secret/myapp/config db_host="new-host.rds.amazonaws.com" api_url="https://new.api.com"
+
+# Wait for the refresh interval, then check the K8s Secret
+kubectl get secret myapp-config -n myapp -o jsonpath='{.data.db_host}' | base64 --decode
+```
+
+**What to demonstrate:** Show the ESO controller logs, the ExternalSecret status, and the automatic update of the K8s Secret when the Vault secret changes.
+
+---
+
+### Chapter 8 Summary
+
+- Native Kubernetes Secrets are base64-encoded, not encrypted. Enable etcd encryption at rest as a minimum.
+- External Secrets Operator bridges external secrets stores (Vault, Secrets Manager) with K8s Secrets. Use it in production.
+- Sealed Secrets encrypts Secret manifests for GitOps workflows — safe to commit to Git.
+- The recommended production stack: External Secrets Operator + AWS Secrets Manager or HashiCorp Vault + etcd encryption at rest.
+- Applications consume secrets as files or environment variables — they don't need to know the backend.
+
+---
+
+## Chapter 9: Certificate Management — Let's Encrypt, cert-manager, AWS ACM, Private CA {#chapter-9}
+
+### Why TLS Certificates Matter
+
+Every service that communicates over a network — your website, your internal APIs, your microservices talking to each other — should use TLS (Transport Layer Security) to encrypt the communication and authenticate the server's identity.
+
+Without TLS, communication is vulnerable to:
+- **Eavesdropping:** Anyone on the network path can read the data
+- **Man-in-the-middle attacks:** An attacker can intercept and modify communication
+- **Impersonation:** Without certificate verification, clients can't confirm they're talking to the real server
+
+TLS uses certificates — digital documents that bind a domain name (or IP address) to a public key, signed by a Certificate Authority (CA) that the client trusts.
+
+Managing certificates used to be painful: buy them from a CA, manually install them, renew them every year before they expired. Today, with Let's Encrypt (free automated certificates), cert-manager (K8s certificate automation), and AWS ACM (managed certificates for AWS services), certificate management can be fully automated.
+
+---
+
+### AWS Certificate Manager (ACM)
+
+ACM is AWS's managed certificate service for certificates used with AWS services. Its key advantage: it handles renewal automatically and integrates seamlessly with AWS services.
+
+**What ACM does:**
+- Issues free TLS certificates for your domains
+- Automatically renews certificates (no manual renewal, no expiry surprises)
+- Integrates with: Elastic Load Balancers (ALB, NLB, CLB), CloudFront, API Gateway, Elastic Beanstalk
+
+**What ACM does NOT do:**
+- Issue certificates you can install on EC2 instances directly or in Kubernetes
+- The certificate's private key is never accessible to you — ACM manages it
+
+This means ACM is perfect for ALB/NLB/CloudFront termination, but you need something else for in-cluster TLS or EC2 instance TLS.
+
+**Requesting a certificate in ACM:**
+
+```bash
+# Request a certificate with DNS validation (recommended)
+aws acm request-certificate \
+  --domain-name "myapp.com" \
+  --subject-alternative-names "www.myapp.com" "api.myapp.com" \
+  --validation-method DNS \
+  --region us-east-1
+
+# Get the validation records (CNAME records to add to your DNS)
+CERT_ARN="arn:aws:acm:us-east-1:123456789012:certificate/xxxx-xxxx"
+
+aws acm describe-certificate \
+  --certificate-arn $CERT_ARN \
+  --query 'Certificate.DomainValidationOptions[*].[DomainName,ResourceRecord]' \
+  --output table
+
+# Once you've added the DNS records, wait for validation
+aws acm wait certificate-validated --certificate-arn $CERT_ARN
+
+# Attach to an ALB
+aws elbv2 add-listener-certificates \
+  --listener-arn "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/my-alb/xxxx/yyyy" \
+  --certificates CertificateArn=$CERT_ARN
+```
+
+---
+
+### Let's Encrypt
+
+Let's Encrypt is a free, automated, open Certificate Authority. It issues certificates valid for 90 days and is designed to be renewed automatically via the ACME protocol.
+
+Certificates from Let's Encrypt are trusted by all major browsers and operating systems — they're ideal for public-facing services where you need a certificate you can actually install (on a server, in Kubernetes, etc.).
+
+**Let's Encrypt validation methods:**
+
+- **HTTP-01:** Let's Encrypt reaches your domain over HTTP and checks for a specific file at `/.well-known/acme-challenge/TOKEN`. Requires port 80 to be accessible.
+- **DNS-01:** You prove domain ownership by creating a specific TXT record in your DNS zone. Works for wildcard certificates and for servers behind firewalls.
+- **TLS-ALPN-01:** Certificate issuance using TLS itself. Less common.
+
+---
+
+### cert-manager: Automated Certificate Management for Kubernetes
+
+cert-manager is a Kubernetes operator that automates the management of X.509 certificates. It integrates with Let's Encrypt, private CAs (including Vault PKI), and AWS ACM.
+
+**Architecture:**
+
+```
+cert-manager Controller (pod in the cluster)
+         │
+    Watches for Certificate resources
+         │
+   ┌─────▼──────────────────────────────┐
+   │         Issuers / ClusterIssuers   │
+   │  Let's Encrypt (ACME)              │
+   │  HashiCorp Vault PKI               │
+   │  AWS ACM (via aws-pca-issuer)      │
+   │  Self-signed                       │
+   └─────────────────────────────────────┘
+         │
+   Issues certificates, stores as K8s Secrets
+         │
+   Renews automatically before expiry
+```
+
+**Installing cert-manager:**
+
+```bash
+# Install via Helm
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set crds.enabled=true
+
+# Verify installation
+kubectl get pods -n cert-manager
+```
+
+---
+
+### Configuring Let's Encrypt with cert-manager
+
+**Step 1: Create a ClusterIssuer for Let's Encrypt**
+
+A `ClusterIssuer` is cluster-wide (works across all namespaces). An `Issuer` is namespace-scoped.
+
+```yaml
+# letsencrypt-issuer.yaml
+# Start with the staging environment to test (no rate limits)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # Let's Encrypt staging server - for testing
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    
+    # Store the ACME account key in this K8s Secret
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    
+    solvers:
+      # HTTP-01 challenge: cert-manager creates a pod to respond to the challenge
+      - http01:
+          ingress:
+            class: nginx  # Or alb, traefik, etc.
+
+---
+# Production issuer (use after testing with staging)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+```
+
+```bash
+kubectl apply -f letsencrypt-issuer.yaml
+
+# Check the ClusterIssuer status
+kubectl describe clusterissuer letsencrypt-staging
+```
+
+**Step 2: Request a certificate via an Ingress annotation**
+
+The simplest way to use cert-manager is via Ingress annotations. cert-manager watches for Ingress resources and automatically requests certificates.
+
+```yaml
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: myapp-ingress
+  namespace: myapp
+  annotations:
+    # Tell cert-manager to request a certificate for this Ingress
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    # For production:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - myapp.example.com
+      # cert-manager will create this Secret with the certificate
+      secretName: myapp-tls
+  rules:
+    - host: myapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: myapp-service
+                port:
+                  number: 80
+```
+
+**Step 3: Request a certificate explicitly via a Certificate resource**
+
+For more control, use a Certificate resource directly:
+
+```yaml
+# certificate.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: myapp-cert
+  namespace: myapp
+spec:
+  # The K8s Secret that will contain the certificate and private key
+  secretName: myapp-tls
+  
+  # Certificate duration and renewal timing
+  duration: 2160h      # 90 days (Let's Encrypt default)
+  renewBefore: 360h    # Renew 15 days before expiry
+  
+  # Subject details
+  subject:
+    organizations:
+      - MyCompany
+  
+  # The domain name(s) for the certificate
+  commonName: myapp.example.com
+  dnsNames:
+    - myapp.example.com
+    - api.myapp.example.com
+  
+  # Which issuer to use
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+    group: cert-manager.io
+```
+
+```bash
+kubectl apply -f certificate.yaml
+
+# Watch the certificate being issued
+kubectl describe certificate myapp-cert -n myapp
+
+# Check the resulting secret
+kubectl get secret myapp-tls -n myapp -o jsonpath='{.data.tls\.crt}' | base64 --decode | openssl x509 -text -noout
+```
+
+---
+
+### DNS-01 Challenge (for wildcard certificates)
+
+For wildcard certificates (`*.myapp.example.com`) or when port 80 is not accessible, use DNS-01 validation. cert-manager creates a TXT record in your DNS provider to prove domain ownership.
+
+```yaml
+# For Route 53 DNS validation
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-dns
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: your-email@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-dns-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: us-east-1
+            # cert-manager uses IRSA (no stored credentials)
+            # The service account needs route53:ChangeResourceRecordSets permission
+```
+
+---
+
+### AWS Private CA (Private Certificate Authority)
+
+For internal services (microservice-to-microservice communication, internal APIs), you don't need publicly trusted certificates. You can use a private CA — one that you control, whose certificates are only trusted within your organisation.
+
+AWS Private CA is a managed CA service:
+
+```bash
+# Create a private CA
+aws acm-pca create-certificate-authority \
+  --certificate-authority-configuration '{
+    "KeyAlgorithm": "RSA_2048",
+    "SigningAlgorithm": "SHA256WITHRSA",
+    "Subject": {
+      "Organization": "MyCompany",
+      "CommonName": "MyCompany Internal CA"
+    }
+  }' \
+  --certificate-authority-type ROOT \
+  --output text --query CertificateAuthorityArn
+```
+
+You can integrate AWS Private CA with cert-manager using the `aws-privateca-issuer` plugin:
+
+```bash
+# Install the AWS PCA issuer plugin
+helm repo add aws-pca-issuer https://cert-manager.github.io/aws-privateca-issuer
+helm install aws-pca-issuer aws-pca-issuer/aws-privateca-issuer \
+  --namespace cert-manager
+
+# Create an AWSPCAClusterIssuer
+cat > pca-issuer.yaml << 'EOF'
+apiVersion: awspca.cert-manager.io/v1beta1
+kind: AWSPCAClusterIssuer
+metadata:
+  name: internal-ca
+spec:
+  arn: "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/xxxx"
+  region: us-east-1
 EOF
+kubectl apply -f pca-issuer.yaml
 ```
 
-**Step 6:** Verify the Kubernetes Secret was created.
+---
+
+### How This Works in the Real World
+
+Production certificate management typically looks like:
+
+- **Public-facing services on ALB/NLB:** AWS ACM certificates, automatic renewal, zero operational overhead
+- **In-cluster service-to-service TLS (mTLS):** cert-manager + Vault PKI, short-lived certificates (24-72 hours), automatically renewed
+- **Public-facing services directly on Kubernetes:** cert-manager + Let's Encrypt, certificates stored as K8s Secrets, automatically renewed
+- **Internal services:** cert-manager + AWS Private CA or Vault PKI
+
+Service meshes (Istio, Linkerd) handle mTLS automatically between pods, using their own certificate infrastructure (often backed by cert-manager).
+
+---
+
+### Practical Task — Chapter 9
+
+**Task: Configure cert-manager in K8s with Let's Encrypt — auto-issue and renew TLS certificates**
+
+**Step 1:** Install cert-manager (from commands above).
+
+**Step 2:** Create a ClusterIssuer for Let's Encrypt staging, then production.
+
+**Step 3:** Deploy a sample application with an Ingress that uses cert-manager:
+
+```yaml
+# Test with a hello-world app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-world
+  template:
+    metadata:
+      labels:
+        app: hello-world
+    spec:
+      containers:
+        - name: hello-world
+          image: hashicorp/http-echo
+          args: ["-text=Hello, TLS World!"]
+          ports:
+            - containerPort: 5678
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-world
+spec:
+  selector:
+    app: hello-world
+  ports:
+    - port: 80
+      targetPort: 5678
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-world
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  tls:
+    - hosts:
+        - hello.YOUR_DOMAIN.com
+      secretName: hello-world-tls
+  rules:
+    - host: hello.YOUR_DOMAIN.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello-world
+                port:
+                  number: 80
+```
+
+**Step 4:** Verify the certificate was issued:
 
 ```bash
-kubectl get secret myapp-secrets -n demo -o yaml
-# You should see the keys and base64-encoded values
+# Watch the Certificate resource
+kubectl describe certificate hello-world-tls
 
-# Decode to verify
-kubectl get secret myapp-secrets -n demo \
-  -o jsonpath='{.data.database_password}' | base64 -d
-# Should print: VaultSecret123!
+# Check the Order and Challenge objects (created during the ACME challenge)
+kubectl get orders,challenges
+
+# Verify the certificate in the secret
+kubectl get secret hello-world-tls -o jsonpath='{.data.tls\.crt}' | base64 --decode | openssl x509 -text -noout | grep -A2 "Validity"
+
+# Test with curl
+curl --insecure https://hello.YOUR_DOMAIN.com  # --insecure because it's a staging cert
 ```
 
-**Step 7:** Update the Vault secret and observe automatic sync.
+**What to demonstrate:** cert-manager successfully issued a certificate, it's stored in the K8s Secret, and the application is accessible over HTTPS.
+
+---
+
+### Chapter 9 Summary
+
+- TLS certificates authenticate servers and encrypt communication. All services should use TLS.
+- AWS ACM handles certificates for AWS services (ALB, CloudFront) with zero operational overhead — certificates are managed by AWS.
+- Let's Encrypt provides free, 90-day certificates for public services, automated via the ACME protocol.
+- cert-manager automates certificate lifecycle in Kubernetes: requesting, storing as Secrets, and renewing before expiry.
+- AWS Private CA and Vault PKI provide certificates for internal services without going to a public CA.
+
+---
+
+## Chapter 10: Secret Scanning — TruffleHog, GitGuardian, git-secrets, gitleaks — CI Integration {#chapter-10}
+
+### The Problem: Secrets in Source Code
+
+Despite best practices, secrets end up in source code. It happens more than people admit:
+
+- A developer is debugging and temporarily hardcodes a database password
+- A configuration file with an API key gets committed by mistake
+- A test file contains a real credential instead of a placeholder
+- An old commit from years ago contains a long-forgotten access key
+
+These secrets stay in git history forever. Even if you remove them from the latest commit, they're still in every commit that came before. Anyone with access to the repository (or a git clone of it) can find them.
+
+Secret scanning tools detect these leaked credentials — in commit history, in code, in configuration files, in CI/CD pipelines. They're an essential defence layer.
+
+---
+
+### TruffleHog
+
+TruffleHog scans git history (and other sources) for secrets using regular expression patterns and entropy detection. It checks whether suspicious strings have high entropy (randomness) — a characteristic of real secrets vs. placeholder strings.
+
+**Installation:**
 
 ```bash
-vault kv put secret/myapp/config \
-  database_password="NewRotatedPassword456!" \
-  api_key="vault-generated-api-key"
+# Install via pip
+pip install trufflehog3
 
-# Wait 30 seconds (the refresh interval)
-sleep 35
+# Or via Docker (recommended)
+docker pull trufflesecurity/trufflehog:latest
 
-# Check if the Kubernetes Secret was updated
-kubectl get secret myapp-secrets -n demo \
-  -o jsonpath='{.data.database_password}' | base64 -d
-# Should now print: NewRotatedPassword456!
+# Or install the Go binary directly
+go install github.com/trufflesecurity/trufflehog/v3@latest
 ```
 
-## Chapter Summary
+**Scanning a git repository:**
 
-- Kubernetes Secrets are base64-encoded by default. Enable etcd encryption at rest with KMS.
-- Sealed Secrets encrypts Secret manifests so they are safe to commit to Git. The cluster controller decrypts them.
-- External Secrets Operator syncs secrets from external secret managers (Vault, AWS Secrets Manager, etc.) into Kubernetes Secrets automatically.
-- ESO ExternalSecret manifests (pointers, not values) are safe to store in Git.
-- ESO supports automatic rotation: when the secret changes in the external manager, ESO updates the Kubernetes Secret within the refresh interval.
-- For production GitOps, prefer ESO over Sealed Secrets because it supports automatic rotation and externalises the source of truth to a dedicated secret manager.
+```bash
+# Scan a local repository (full history)
+trufflehog git file://. --only-verified
+
+# Scan a GitHub repository
+trufflehog github --org=myorg --repo=myrepo --only-verified
+
+# Scan and output JSON for CI processing
+trufflehog git file://. --json --only-verified > trufflehog-results.json
+
+# The --only-verified flag only reports secrets that TruffleHog can verify are active
+# (e.g., it actually calls the AWS API to test if the key works)
+# Remove this flag to see all potential secrets, including possibly expired ones
+
+# Scan a specific branch or since a specific commit
+trufflehog git file://. \
+  --branch main \
+  --since-commit HEAD~50 \
+  --only-verified
+```
+
+**Understanding TruffleHog output:**
+
+```
+🐷🔑🐷  TruffleHog. Unearth your secrets. 🐷🔑🐷
+
+Found verified result 🐷🔑
+Detector Type: AWS
+Decoder Type: PLAIN
+Raw result: AKIAIOSFODNN7EXAMPLE
+Commit: abc123def456
+Email: developer@example.com
+File: src/config/database.py
+Line: 42
+Repository: https://github.com/myorg/myrepo
+Timestamp: 2024-01-15 09:23:41 +0000 UTC
+```
+
+This output tells you:
+- **Detector Type:** What kind of secret it found (AWS key in this case)
+- **Raw result:** The actual secret value (AKIAIOSFODNN7 is the pattern for AWS access keys)
+- **Commit:** The git commit hash where it was introduced
+- **File and Line:** Exactly where in the code
+- **Timestamp:** When it was committed
+
+---
+
+### gitleaks
+
+gitleaks is a fast, configurable secret scanner written in Go. It's commonly used in CI/CD pipelines.
+
+**Installation:**
+
+```bash
+# macOS
+brew install gitleaks
+
+# Linux
+GITLEAKS_VERSION="8.18.2"
+curl -L "https://github.com/zricethezav/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz
+sudo mv gitleaks /usr/local/bin/
+```
+
+**Basic usage:**
+
+```bash
+# Scan the entire repository history
+gitleaks detect --source . --verbose
+
+# Scan only the staged changes (pre-commit hook)
+gitleaks protect --staged
+
+# Scan and output report
+gitleaks detect --source . --report-format json --report-path report.json
+
+# Exit with non-zero code if secrets are found (for CI)
+gitleaks detect --source . --exit-code 1
+```
+
+**Custom configuration (.gitleaks.toml):**
+
+```toml
+# .gitleaks.toml
+# Customise detection rules
+
+title = "My App Secret Scanning Config"
+
+# Allowlists - known false positives to ignore
+[allowlist]
+  description = "Known false positives"
+  paths = [
+    '''test/fixtures/''',    # Test fixture files may contain fake credentials
+    '''docs/examples/''',   # Documentation examples
+  ]
+  regexes = [
+    '''EXAMPLE_KEY_[A-Z0-9]+''',  # Placeholder patterns in docs
+    '''your-api-key-here''',      # Common placeholder text
+  ]
+
+# Add custom detection rules
+[[rules]]
+  id = "custom-internal-api-key"
+  description = "Internal API key format"
+  regex = '''internal_key_[a-zA-Z0-9]{32}'''
+  tags = ["internal", "api"]
+```
+
+---
+
+### git-secrets
+
+git-secrets (from AWS Labs) focuses specifically on preventing commits that contain secrets, rather than scanning after the fact.
+
+```bash
+# Install git-secrets
+git clone https://github.com/awslabs/git-secrets.git
+cd git-secrets
+make install
+
+# Add git-secrets to a specific repository
+git secrets --install
+
+# Register AWS credential patterns (prevents AWS keys from being committed)
+git secrets --register-aws
+
+# Add custom patterns
+git secrets --add 'MY_APP_API_KEY=[A-Za-z0-9]{40}'
+
+# Scan the repository
+git secrets --scan-history
+
+# The --install command adds git hooks:
+# - pre-commit: scans staged files before each commit
+# - commit-msg: scans commit messages
+# - prepare-commit-msg: scans commit message templates
+```
+
+---
+
+### Integrating Secret Scanning into CI/CD
+
+Secret scanning should run in your CI/CD pipeline to catch secrets before they reach the main branch. Here's a GitHub Actions workflow:
+
+```yaml
+# .github/workflows/security.yml
+name: Security Scans
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for complete scanning
+          fetch-depth: 0
+      
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified --json
+      
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        with:
+          args: detect --source . --exit-code 1 --report-path gitleaks-report.json
+      
+      - name: Upload gitleaks report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+```
+
+---
+
+### Remediating Findings
+
+When a secret is found in git history, the response depends on the severity:
+
+**Step 1: Rotate the secret immediately**
+
+This is the first and most critical step. Whether the secret has been exploited or not, assume it has been. Revoke the old credential and issue a new one:
+
+```bash
+# For an AWS access key
+aws iam delete-access-key \
+  --user-name the-user \
+  --access-key-id AKIAIOSFODNN7EXAMPLE
+
+# Create a new key
+aws iam create-access-key --user-name the-user
+```
+
+**Step 2: Remove the secret from git history**
+
+This doesn't "un-expose" the secret (assume it's already been seen), but it prevents future exposure and is required for compliance:
+
+```bash
+# Install git-filter-repo (the modern replacement for git-filter-branch)
+pip install git-filter-repo
+
+# Remove the secret from all history
+git filter-repo \
+  --replace-text <(echo 'AKIAIOSFODNN7EXAMPLE==>REMOVED_AWS_ACCESS_KEY') \
+  --force
+
+# Force push to all branches (coordinate with your team first)
+git push origin --force --all
+git push origin --force --tags
+```
+
+**WARNING:** Rewriting git history is destructive. All collaborators need to re-clone the repository. GitHub/GitLab will rotate any cached credentials. This requires team coordination.
+
+**Step 3: Notify affected parties**
+
+If the secret was an API key for a third-party service, notify the vendor's security team. If it was a database password, audit database access logs for unauthorised access. If it was an AWS key, review CloudTrail for any API calls made with that key.
+
+**Step 4: Add the pattern to your scanning rules**
+
+Add a rule to your gitleaks configuration to prevent this pattern from appearing again.
+
+---
+
+### How This Works in the Real World
+
+Mature organisations run secret scanning at multiple layers:
+
+1. **Pre-commit hooks** (`git secrets`, `gitleaks protect --staged`) — catch secrets before they're committed locally
+2. **CI/CD pipeline** (TruffleHog, gitleaks) — catch anything that slips past pre-commit
+3. **Continuous repository scanning** (GitGuardian, GitHub Advanced Security) — continuously scan all repositories, including historical commits
+4. **Incident response process** — a documented playbook for what to do when a secret is found
+
+GitGuardian (SaaS) integrates with GitHub at the organization level and scans every push in real time, sending alerts to developers and security teams.
+
+---
+
+### Practical Task — Chapter 10
+
+**Task: Run TruffleHog and gitleaks on your entire git history — remediate any findings**
+
+**Step 1:** Set up a test repository with intentionally planted fake credentials:
+
+```bash
+# Create a test repository
+mkdir secret-scan-test && cd secret-scan-test
+git init
+
+# Add a file with a fake (but realistic) AWS key
+cat > config.py << 'EOF'
+# This is a test file with a fake credential
+AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+DATABASE_PASSWORD = "SuperSecretPass123!"
+EOF
+
+git add config.py
+git commit -m "Add initial configuration"
+
+# Now "fix" it (but the secret is still in history)
+cat > config.py << 'EOF'
+# Credentials loaded from environment variables
+AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY']
+AWS_SECRET_KEY = os.environ['AWS_SECRET_KEY']
+DATABASE_PASSWORD = os.environ['DATABASE_PASSWORD']
+EOF
+
+git add config.py
+git commit -m "Fix: load credentials from environment"
+```
+
+**Step 2:** Run the scanners:
+
+```bash
+# TruffleHog
+trufflehog git file://. --json 2>/dev/null | python3 -m json.tool
+
+# gitleaks
+gitleaks detect --source . --verbose --report-path gitleaks-report.json
+cat gitleaks-report.json | python3 -m json.tool
+```
+
+**Step 3:** Remediate — remove from history:
+
+```bash
+# Install git-filter-repo
+pip install git-filter-repo
+
+# Remove the fake credentials from history
+git filter-repo \
+  --replace-text <(echo 'AKIAIOSFODNN7EXAMPLE==>REDACTED_ACCESS_KEY') \
+  --force
+
+# Verify the secret is gone
+git log --all -p | grep -i "AKIAIOSFODNN7EXAMPLE"
+# Should return nothing
+
+# Run the scanner again to confirm clean
+gitleaks detect --source . --verbose
+```
+
+**What to demonstrate:** Scanner output showing the finding, evidence of remediation, and a clean scanner run after remediation.
+
+---
+
+### Chapter 10 Summary
+
+- Secrets end up in git history. It happens to every organisation. Scanning prevents and detects it.
+- TruffleHog, gitleaks, and git-secrets are the main tools. Use them in CI/CD pipelines.
+- Pre-commit hooks catch secrets before they're committed. CI scanning catches anything that slips through.
+- When a secret is found: rotate immediately, remove from history, audit access logs, add patterns to prevent recurrence.
+- GitGuardian provides continuous monitoring at the organisation level.
+
+---
+
+## Chapter 11: Audit and Compliance — CloudTrail, Vault Audit Logs, Access Reviews {#chapter-11}
+
+### Why Audit Logs Matter
+
+Security isn't just about preventing bad things from happening. It's also about knowing *what happened* when something goes wrong. Audit logs are the complete record of who did what, when, to which resource, from where.
+
+Without audit logs:
+- You can't detect a breach (you don't know if someone accessed data they shouldn't have)
+- You can't investigate incidents (you don't know what the attacker did)
+- You can't satisfy compliance requirements (SOC 2, PCI-DSS, ISO 27001 all require audit trails)
+- You can't prove your controls are working (you can't demonstrate that access is as restricted as your policies say)
+
+With audit logs:
+- Detect anomalies (unusual access patterns, access from new locations, access to sensitive data by unexpected principals)
+- Investigate incidents (trace exactly what was accessed, when, and by whom)
+- Satisfy compliance auditors (show immutable evidence of access controls)
+- Drive access reviews (see which permissions are actually used vs which are granted)
+
+---
+
+### AWS CloudTrail
+
+CloudTrail is AWS's audit logging service. It records every API call made in your AWS account — every `RunInstances`, every `GetSecretValue`, every `AssumeRole` — with the caller identity, timestamp, source IP, request parameters, and response.
+
+**Enabling CloudTrail (it's probably already on):**
+
+```bash
+# Check if CloudTrail is enabled
+aws cloudtrail describe-trails --output table
+
+# Create a trail if needed (stores logs in S3)
+aws cloudtrail create-trail \
+  --name my-account-trail \
+  --s3-bucket-name my-cloudtrail-bucket \
+  --is-multi-region-trail \
+  --enable-log-file-validation \
+  --include-global-service-events
+
+# Start logging
+aws cloudtrail start-logging --name my-account-trail
+```
+
+**Key CloudTrail concepts:**
+
+- **Management events:** API calls that manage AWS resources (create EC2, modify IAM policy, etc.). Enabled by default.
+- **Data events:** API calls that access data within resources (S3 `GetObject`, DynamoDB `GetItem`, Lambda invocations). Must be explicitly enabled — these are high-volume.
+- **Insights events:** CloudTrail detects unusual API activity patterns (e.g., a sudden spike in IAM policy changes).
+
+**Enabling S3 data events (for secret access auditing):**
+
+```bash
+# Enable data events for a specific S3 bucket
+aws cloudtrail put-event-selectors \
+  --trail-name my-account-trail \
+  --event-selectors '[
+    {
+      "ReadWriteType": "All",
+      "IncludeManagementEvents": true,
+      "DataResources": [
+        {
+          "Type": "AWS::S3::Object",
+          "Values": ["arn:aws:s3:::my-sensitive-bucket/"]
+        }
+      ]
+    }
+  ]'
+```
+
+**Querying CloudTrail with AWS Athena:**
+
+CloudTrail logs are stored in S3 as compressed JSON files. For ad-hoc queries, use Athena:
+
+```sql
+-- Find all GetSecretValue calls in the last 7 days
+SELECT
+  eventTime,
+  userIdentity.arn AS caller,
+  sourceIPAddress,
+  requestParameters
+FROM cloudtrail_logs
+WHERE eventName = 'GetSecretValue'
+  AND eventTime >= date_add('day', -7, now())
+ORDER BY eventTime DESC;
+
+-- Find all failed authentication attempts
+SELECT
+  eventTime,
+  userIdentity.arn AS caller,
+  sourceIPAddress,
+  errorCode,
+  errorMessage
+FROM cloudtrail_logs
+WHERE errorCode IN ('AccessDenied', 'UnauthorizedOperation', 'AuthFailure')
+  AND eventTime >= date_add('day', -7, now())
+ORDER BY eventTime DESC;
+
+-- Find all IAM changes made by a specific user
+SELECT
+  eventTime,
+  eventName,
+  requestParameters
+FROM cloudtrail_logs
+WHERE userIdentity.arn LIKE '%specific-user%'
+  AND eventSource = 'iam.amazonaws.com'
+  AND eventTime >= date_add('day', -30, now())
+ORDER BY eventTime;
+```
+
+**Setting up CloudWatch alerts for suspicious activity:**
+
+```bash
+# Create a metric filter for root account usage
+aws logs put-metric-filter \
+  --log-group-name "aws-cloudtrail-logs" \
+  --filter-name "RootAccountUsage" \
+  --filter-pattern '{ $.userIdentity.type = "Root" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != "AwsServiceEvent" }' \
+  --metric-transformations \
+    metricName=RootAccountUsageCount,metricNamespace=SecurityMetrics,metricValue=1
+
+# Create an alarm
+aws cloudwatch put-metric-alarm \
+  --alarm-name "RootAccountUsageAlarm" \
+  --alarm-description "Alert when root account is used" \
+  --metric-name RootAccountUsageCount \
+  --namespace SecurityMetrics \
+  --statistic Sum \
+  --period 60 \
+  --threshold 1 \
+  --comparison-operator GreaterThanOrEqualToThreshold \
+  --evaluation-periods 1 \
+  --alarm-actions "arn:aws:sns:us-east-1:123456789012:SecurityAlerts"
+```
+
+---
+
+### Vault Audit Logs
+
+Vault's audit system logs every request and response — every authentication attempt, every secret read, every policy change. This is the authoritative audit trail for secrets access.
+
+**Enabling audit devices:**
+
+```bash
+# Enable file-based audit logging (logs to a file inside the Vault pod)
+vault audit enable file file_path=/vault/logs/audit.log
+
+# Enable syslog audit logging (logs to syslog, can be forwarded to a SIEM)
+vault audit enable syslog tag=vault facility=AUTH
+
+# Enable multiple audit devices simultaneously (recommended)
+# Vault requires ALL audit devices to successfully write before a request succeeds
+# This prevents audit log bypass
+
+# List configured audit devices
+vault audit list
+```
+
+**Vault audit log format:**
+
+Each audit log entry is a JSON object:
+
+```json
+{
+  "time": "2024-01-15T14:23:41.123456Z",
+  "type": "request",
+  "auth": {
+    "client_token": "hmac-sha256:xxxx",   // Hashed - not the actual token
+    "accessor": "hmac-sha256:yyyy",
+    "policies": ["my-app-policy"],
+    "metadata": {
+      "role_id": "my-app-role"
+    },
+    "entity_id": "",
+    "token_type": "service",
+    "token_ttl": 3600
+  },
+  "request": {
+    "id": "uuid-xxxx",
+    "operation": "read",
+    "mount_type": "database",
+    "path": "database/creds/myapp-readonly",
+    "remote_address": "10.0.1.100",
+    "remote_port": 45678
+  },
+  "response": {
+    "data": {
+      "lease_duration": 3600,
+      "lease_id": "database/creds/myapp-readonly/xxxx",
+      "renewable": true
+    }
+  }
+}
+```
+
+Note: Vault hashes sensitive values (tokens, secret values) in audit logs by default. The audit log shows that the secret was accessed and who accessed it, but not the actual secret value.
+
+**Shipping Vault audit logs to CloudWatch:**
+
+```yaml
+# In Kubernetes, use a Fluent Bit sidecar to ship Vault logs
+# fluent-bit-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-log-shipping
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+    
+    [INPUT]
+        Name              tail
+        Path              /vault/logs/audit.log
+        Tag               vault.audit
+        Parser            json
+        Refresh_Interval  5
+    
+    [OUTPUT]
+        Name              cloudwatch_logs
+        Match             vault.audit
+        region            us-east-1
+        log_group_name    /vault/audit
+        log_stream_prefix vault-
+        auto_create_group true
+```
+
+---
+
+### Access Reviews
+
+An access review (or access certification) is a periodic process where each access grant is reviewed by the appropriate person and either confirmed or revoked.
+
+**What to review:**
+
+1. **IAM users with console access:** Is this person still employed? Do they still need this access?
+2. **IAM access keys:** Are these still in use? When was the last API call? Have they been rotated recently?
+3. **IAM roles:** Is this role still needed? Is it attached to the right resources?
+4. **Service account permissions:** Does this service still use all the permissions it has? (Use CloudTrail + IAM Access Advisor)
+5. **Vault policies:** Does this application still need access to these secrets?
+6. **Secrets rotation status:** Have all secrets been rotated within their policy period?
+
+**Automating an access review report with a script:**
+
+```python
+import boto3
+import json
+from datetime import datetime, timezone, timedelta
+
+def generate_iam_access_report():
+    """
+    Generate a comprehensive IAM access review report.
+    """
+    iam = boto3.client('iam')
+    
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "users": [],
+        "roles": [],
+        "findings": []
+    }
+    
+    # Check all IAM users
+    paginator = iam.get_paginator('list_users')
+    for page in paginator.paginate():
+        for user in page['Users']:
+            user_report = {
+                "username": user['UserName'],
+                "created": user['CreateDate'].isoformat(),
+                "mfa_enabled": False,
+                "access_keys": [],
+                "last_console_login": user.get('PasswordLastUsed', 'Never').isoformat() if user.get('PasswordLastUsed') else 'Never'
+            }
+            
+            # Check MFA status
+            mfa_devices = iam.list_mfa_devices(UserName=user['UserName'])
+            user_report['mfa_enabled'] = len(mfa_devices['MFADevices']) > 0
+            
+            # Check access keys
+            access_keys = iam.list_access_keys(UserName=user['UserName'])
+            for key in access_keys['AccessKeyMetadata']:
+                key_last_used = iam.get_access_key_last_used(AccessKeyId=key['AccessKeyId'])
+                last_used = key_last_used['AccessKeyLastUsed'].get('LastUsedDate', 'Never')
+                
+                key_report = {
+                    "key_id": key['AccessKeyId'],
+                    "status": key['Status'],
+                    "created": key['CreateDate'].isoformat(),
+                    "last_used": last_used.isoformat() if last_used != 'Never' else 'Never'
+                }
+                user_report['access_keys'].append(key_report)
+                
+                # Flag as finding if key hasn't been used in 90 days
+                if last_used != 'Never':
+                    days_unused = (datetime.now(timezone.utc) - last_used).days
+                    if days_unused > 90:
+                        report['findings'].append({
+                            "severity": "HIGH",
+                            "finding": f"Access key {key['AccessKeyId']} for user {user['UserName']} has not been used in {days_unused} days",
+                            "recommendation": "Disable or delete the access key"
+                        })
+            
+            # Flag users without MFA
+            if not user_report['mfa_enabled']:
+                report['findings'].append({
+                    "severity": "HIGH",
+                    "finding": f"User {user['UserName']} does not have MFA enabled",
+                    "recommendation": "Enable MFA for this user or disable console access if not needed"
+                })
+            
+            report['users'].append(user_report)
+    
+    return report
+
+# Generate and print the report
+report = generate_iam_access_report()
+print(json.dumps(report, indent=2, default=str))
+```
+
+---
+
+### How This Works in the Real World
+
+In organisations with mature security programmes:
+
+- **CloudTrail is non-negotiable.** It's enabled in every account from day one, logs shipped to a centralised S3 bucket in a security account (with bucket policies preventing deletion), with 7-year retention for compliance.
+- **Vault audit logs are shipped to a SIEM** (Splunk, Datadog, Elastic) in real time. Queries and alerts are configured to detect: failed authentications, access to high-sensitivity secrets, policy changes, and token creation.
+- **Quarterly access reviews** are a calendar event. Each team reviews their IAM roles and Vault policies, documents any changes, and submits evidence to the security team for the compliance archive.
+- **AWS IAM Access Analyzer** runs continuously and generates findings for any resources accessible from outside the account.
+
+---
+
+### Practical Task — Chapter 11
+
+**Task: Build a secrets management runbook: how to rotate, audit, and respond to a leaked secret**
+
+This task produces a document, not a technical configuration. It's critically important — a runbook is what you reach for at 2am when something is wrong.
+
+**Your runbook must cover:**
+
+**Section 1: Secret Rotation Procedures**
+- How to manually rotate an RDS password in Secrets Manager (step-by-step, including the application restart procedure)
+- How to manually rotate a Vault dynamic secret (revoke all leases, force re-authentication)
+- How to rotate a TLS certificate (cert-manager: delete the Certificate resource and recreate, or annotate for immediate renewal)
+
+**Section 2: Audit Procedures**
+- How to run an on-demand access report (the Python script from this chapter, or the AWS CLI commands)
+- How to query CloudTrail for specific events (the Athena SQL queries from this chapter)
+- How to check Vault audit logs for a specific secret or token
+- How to identify unused IAM permissions (IAM Access Advisor steps)
+
+**Section 3: Incident Response — Leaked Secret**
+Follow this exact structure:
+
+```markdown
+## Leaked Secret Response Procedure
+
+### Immediate Response (0–15 minutes)
+1. Identify the leaked secret type and scope (what system/service does it grant access to?)
+2. Rotate/revoke the secret IMMEDIATELY (do not wait for investigation to complete)
+3. Notify: [Security team Slack channel / PagerDuty / email]
+4. Document: incident time, secret name/type, suspected exposure vector
+
+### Investigation (15 minutes – 4 hours)
+5. Query CloudTrail (or Vault audit logs) for all API calls made with the compromised credential:
+   ```bash
+   aws cloudtrail lookup-events \
+     --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=COMPROMISED_KEY_ID \
+     --start-time "2024-01-01T00:00:00"
+   ```
+6. Identify the git commit or file where the secret was found
+7. Determine when the secret was first exposed (when was the commit made?)
+8. Assess impact: what could the attacker have done with this secret?
+
+### Remediation (4–24 hours)
+9. Remove the secret from git history (git filter-repo)
+10. Force push all branches (coordinate with team)
+11. Add the secret pattern to scanning tools to prevent recurrence
+12. If third-party service: notify the vendor's security team
+
+### Post-Incident
+13. Document the incident in the incident log
+14. Conduct a root cause analysis
+15. Update secret scanning rules
+16. Add this case to the next security training session
+```
+
+**What to submit:** A complete, professional runbook document that someone with appropriate technical background could follow at 2am with no additional guidance.
+
+---
+
+### Chapter 11 Summary
+
+- CloudTrail records every AWS API call. Enable it in every account, ship logs to a secure centralised location, set up alerts for suspicious activity.
+- Vault audit logs record every interaction with Vault. Enable them immediately and ship to a SIEM.
+- Access reviews are periodic reviews of who has access to what. Quarterly is common for compliance.
+- A runbook is as important as the technical controls. Know what to do when something goes wrong before it goes wrong.
+
+---
+
+## Chapter 12: Zero-Trust Principles — Never Trust, Always Verify, Microsegmentation {#chapter-12}
+
+### The End of the Perimeter
+
+Traditional network security was built on a concept called "the perimeter." You had an inside network (trusted) and an outside network (untrusted). A firewall guarded the perimeter. If you were inside, you were trusted. If you were outside, you weren't.
+
+This model has collapsed. Cloud computing, remote work, microservices architectures, and mobile devices have dissolved the perimeter. There is no "inside" anymore. Your applications are distributed across AWS, Azure, on-premises data centres, developer laptops, and third-party services. Traffic flows everywhere.
+
+Zero-trust is the security model built for this reality. Its foundation is a simple principle:
+
+**"Never trust, always verify."**
+
+It doesn't matter if a request comes from inside the network, from a trusted IP address, or even from a device on the corporate VPN. Every request must prove its identity, every time, for every resource. Trust is never assumed — it must be earned on each request.
+
+---
+
+### The Five Pillars of Zero-Trust
+
+**Pillar 1: Identity Verification**
+
+Every entity — user, service, device — must have a verified identity. In AWS terms:
+- Users authenticate with strong MFA
+- Services use IAM roles, OIDC, or Vault tokens — never static credentials
+- Every API call is signed and authenticated
+
+We've implemented this throughout this book: IAM roles, OIDC federation, Vault auth methods — all of these are identity verification mechanisms.
+
+**Pillar 2: Device Trust**
+
+Devices must meet security requirements before being granted access. Device posture checks might include:
+- Operating system is up to date
+- Endpoint protection software is installed and active
+- Disk encryption is enabled
+- The device is enrolled in the organisation's MDM (Mobile Device Management) system
+
+In cloud/Kubernetes terms, this translates to:
+- Container images must pass security scanning before deployment
+- Nodes must have approved AMIs/images
+- Pod security standards enforce container runtime constraints
+
+**Pillar 3: Least Privilege Access**
+
+We covered this in Chapter 1. Zero-trust requires that every identity has only the minimum necessary permissions — and those permissions are dynamically granted based on context, not statically assigned.
+
+**Pillar 4: Microsegmentation**
+
+Microsegmentation means dividing the network (or the application) into small segments with explicit, policy-based access controls between them.
+
+Traditional segmentation: put servers in different VLANs, block traffic between networks at the firewall.
+
+Microsegmentation: every service can only communicate with the specific services it needs to. A payment service can talk to the database and the fraud detection service. It cannot talk to the user profile service or the logging service.
+
+In Kubernetes, this is implemented with **Network Policies:**
+
+```yaml
+# Deny all ingress traffic by default (zero-trust starting point)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: myapp
+spec:
+  podSelector: {}       # Applies to all pods in the namespace
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# Allow the payments service to talk to the database only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: payments-to-database
+  namespace: myapp
+spec:
+  podSelector:
+    matchLabels:
+      app: payments-service    # This policy applies to pods with this label
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres    # Can send traffic to postgres pods only
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# Allow ingress to payments from the API gateway only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-gateway-to-payments
+  namespace: myapp
+spec:
+  podSelector:
+    matchLabels:
+      app: payments-service    # Payments service pods
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway  # Only from the API gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+```
+
+**Pillar 5: Continuous Monitoring and Analytics**
+
+Zero-trust isn't a configuration you set once. It requires continuous monitoring:
+- Every access request is logged
+- Anomaly detection identifies unusual patterns
+- Access reviews ensure permissions remain appropriate
+- Alerts fire for unexpected access patterns
+
+This brings us back to Chapter 11 — audit logs are not optional in a zero-trust model. They're the mechanism by which continuous verification happens.
+
+---
+
+### Mutual TLS (mTLS): Verifying Both Sides
+
+In standard TLS, the client verifies the server's certificate. In mutual TLS (mTLS), both sides verify each other's certificates. This means:
+
+- The server knows it's talking to a legitimate client (not just any client that knows the endpoint)
+- The client knows it's talking to the legitimate server
+
+This is "never trust, always verify" applied to service-to-service communication. Even services on the same internal network don't implicitly trust each other.
+
+**In Kubernetes, mTLS is most commonly implemented by a service mesh:**
+
+```yaml
+# Istio - enable strict mTLS across the namespace
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: myapp
+spec:
+  mtls:
+    mode: STRICT    # All traffic must use mTLS. No plaintext allowed.
+
+---
+# AuthorizationPolicy - specify which services can talk to which
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: payments-authz
+  namespace: myapp
+spec:
+  selector:
+    matchLabels:
+      app: payments-service
+  rules:
+    - from:
+        - source:
+            principals:
+              # Only the API gateway's service account can call payments
+              - "cluster.local/ns/myapp/sa/api-gateway"
+      to:
+        - operation:
+            methods: ["POST"]
+            paths: ["/api/v1/payments/*"]
+```
+
+With this configuration, even if an attacker compromises one service in the cluster, they cannot call the payments service because their service account isn't in the authorised principals list.
+
+---
+
+### Zero-Trust in AWS: The AWS Implementation
+
+AWS has implemented zero-trust principles across its services:
+
+**AWS PrivateLink:** Instead of routing traffic over the public internet (even within AWS), PrivateLink lets you access AWS services and VPC endpoints privately over the AWS backbone. No internet gateway needed.
+
+```bash
+# Create a VPC endpoint for Secrets Manager (no internet access needed)
+aws ec2 create-vpc-endpoint \
+  --vpc-id vpc-xxxx \
+  --service-name com.amazonaws.us-east-1.secretsmanager \
+  --vpc-endpoint-type Interface \
+  --subnet-ids subnet-xxxx \
+  --security-group-ids sg-xxxx \
+  --private-dns-enabled
+```
+
+**AWS Verified Access:** Zero-trust network access for corporate applications — users authenticate with identity providers and their device posture is checked before access is granted, all without a VPN.
+
+**Security Groups as a Zero-Trust Tool:**
+
+Security groups in AWS default to "deny all inbound." You explicitly allow exactly the ports and protocols needed:
+
+```bash
+# Create a security group for the application server
+aws ec2 create-security-group \
+  --group-name "app-server-sg" \
+  --description "Security group for application server" \
+  --vpc-id vpc-xxxx
+
+# Allow HTTPS from the load balancer security group only (not the internet)
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-app \
+  --protocol tcp \
+  --port 443 \
+  --source-group sg-alb    # Source is another security group, not a CIDR range
+
+# Allow PostgreSQL from the application server only
+aws ec2 authorize-security-group-ingress \
+  --group-id sg-db \
+  --protocol tcp \
+  --port 5432 \
+  --source-group sg-app    # Only the app server can reach the database
+```
+
+---
+
+### Implementing Zero-Trust: A Practical Framework
+
+Zero-trust is a journey, not a destination. Here's a practical progression:
+
+**Phase 1: Identity Foundation**
+- Replace all static credentials with roles and OIDC (Chapters 1, 2, 7)
+- Enforce MFA for all human users
+- Implement just-in-time access for privileged operations
+
+**Phase 2: Secrets Management**
+- Move all secrets to Secrets Manager or Vault (Chapters 3, 4, 5)
+- Implement automatic rotation for all rotating secrets
+- Implement secret scanning in CI/CD (Chapter 10)
+
+**Phase 3: Network Segmentation**
+- Implement K8s NetworkPolicies with default-deny (this chapter)
+- Migrate workloads to private subnets where possible
+- Use VPC endpoints for AWS service access (no internet required)
+
+**Phase 4: Workload Identity & mTLS**
+- Deploy a service mesh (Istio, Linkerd, AWS App Mesh) for mTLS
+- Implement OIDC for all workload-to-cloud-service authentication
+- Move to short-lived certificates everywhere (cert-manager, Chapter 9)
+
+**Phase 5: Continuous Verification**
+- Implement continuous monitoring and alerting (Chapter 11)
+- Automate access reviews
+- Run regular red team exercises to find gaps
+
+---
+
+### How This Works in the Real World
+
+The most advanced cloud-native organisations implement:
+
+- **No static credentials anywhere** — every identity uses short-lived, dynamically issued credentials
+- **All traffic encrypted** — mTLS between all services, TLS for external traffic, all at rest encrypted
+- **Deny-by-default network policies** — no service can communicate with another unless explicitly permitted
+- **Every access logged** — CloudTrail, Vault audit logs, service mesh access logs, all shipped to SIEM
+- **Identity for everything** — not just users, but every pod, every Lambda function, every CI/CD pipeline has a distinct, limited identity
+
+The goal is a system where a single compromise — one service, one leaked token, one compromised developer laptop — cannot cascade into a catastrophic breach. Blast radius is minimised. Detection is rapid. Recovery is automated.
+
+---
+
+### Common Mistakes Beginners Make
+
+**Mistake 1: Thinking zero-trust is a product you buy**
+
+Zero-trust is a philosophy implemented across dozens of technical controls. No single product makes you "zero-trust." It's a journey of systematic elimination of implicit trust.
+
+**Mistake 2: Starting with network controls instead of identity**
+
+Network segmentation is important, but identity is foundational. A strong identity system (IAM, Vault, OIDC) provides the "who" that every other control is built upon.
+
+**Mistake 3: Not accounting for the human element**
+
+Technical controls can be perfect, but humans remain the largest attack surface. Social engineering, phishing, and credential theft target humans. Strong MFA, security awareness training, and just-in-time access help reduce human risk.
+
+---
+
+### Practical Task — Chapter 12
+
+This chapter's principles tie together all previous chapters. The task is to implement a complete zero-trust posture for a sample microservices application:
+
+**Checklist (demonstrate each):**
+1. All services use IAM roles or Vault tokens (no IAM users, no access keys in environment variables)
+2. Network policies in Kubernetes implement default-deny with explicit allow rules
+3. All secrets stored in Secrets Manager or Vault with automatic rotation enabled
+4. OIDC configured for CI/CD (GitHub Actions → AWS, no stored credentials)
+5. cert-manager issuing short-lived TLS certificates
+6. Secret scanning running in CI
+7. CloudTrail enabled and shipping logs
+8. Vault audit logging enabled
+
+**Deliverable:** A security posture document describing the implementation of each zero-trust principle in your environment, with evidence (screenshots, CLI outputs) for each control.
+
+---
+
+### Chapter 12 Summary
+
+- Zero-trust replaces implicit trust with continuous verification. Never trust, always verify.
+- Microsegmentation limits blast radius — a compromised service can only access what it's explicitly permitted to.
+- mTLS verifies both sides of every service-to-service communication.
+- In Kubernetes, Network Policies, PeerAuthentication, and AuthorizationPolicies implement microsegmentation and zero-trust.
+- Zero-trust is a journey. Start with identity, then secrets, then network controls, then continuous monitoring.
+
+---
+
+## Final Chapter: How It All Connects — The Real-World IAM & Secrets Management Workflow {#final-chapter}
+
+You've now learned 12 interconnected topics. Let's step back and see how they form a coherent, complete system.
+
+### The Architecture of a Secure System
+
+Here's what a mature, production-grade secrets and identity system looks like when all the pieces come together:
+
+```
+Developer Workstation
+└── git commit → gitleaks pre-commit hook (Chapter 10)
+    └── push → GitHub
+
+GitHub Repository
+└── Pull Request → CI Pipeline
+    ├── TruffleHog secret scan (Chapter 10)
+    └── On merge to main → Deployment Pipeline
+        ├── OIDC to AWS (no stored credentials) (Chapter 7)
+        ├── Build & push to ECR
+        └── Deploy to EKS
+
+AWS Account
+├── SCPs enforcing security guardrails (Chapter 2)
+├── CloudTrail logging all API calls (Chapter 11)
+└── EKS Cluster
+    ├── IRSA: pods get IAM roles via OIDC (Chapter 7)
+    ├── External Secrets Operator
+    │   ├── SecretStore → AWS Secrets Manager (Chapter 8)
+    │   └── Syncs secrets to K8s Secrets
+    ├── cert-manager (Chapter 9)
+    │   ├── Let's Encrypt for ingress TLS
+    │   └── Vault PKI for internal TLS
+    ├── HashiCorp Vault (Chapter 5)
+    │   ├── Database secret engine → dynamic credentials (Chapter 6)
+    │   ├── AWS secret engine → dynamic IAM creds (Chapter 6)
+    │   ├── PKI secret engine → internal certificates (Chapter 6)
+    │   └── Audit logging → SIEM (Chapter 11)
+    ├── Network Policies: default-deny + explicit allow (Chapter 12)
+    └── mTLS between all services via Istio (Chapter 12)
+
+AWS Secrets Manager (Chapter 3)
+├── All application secrets stored here
+├── Automatic rotation for RDS passwords
+└── Cross-account access for shared secrets
+
+AWS Parameter Store (Chapter 4)
+├── Non-sensitive configuration
+├── Feature flags
+└── Environment-specific settings
+
+IAM Architecture (Chapters 1, 2)
+├── No IAM users for workloads (roles only)
+├── Least privilege policies for all roles
+├── Permission boundaries on developer-created roles
+├── SCPs preventing dangerous operations
+└── Regular access reviews (quarterly)
+```
+
+### The Journey of a Credential: From Request to Use
+
+Let's trace what happens when a pod in EKS needs to connect to a PostgreSQL database:
+
+1. **Pod starts.** The Kubernetes scheduler assigns it to a node. The pod spec references `serviceAccountName: payments-sa`.
+
+2. **IRSA kicks in.** EKS's mutating webhook injects `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` into the pod's environment variables. The service account token is projected into the pod at the specified path.
+
+3. **Vault Agent (sidecar) authenticates to Vault.** It reads the projected service account token and calls Vault's Kubernetes auth endpoint. Vault verifies the token against the Kubernetes API server and issues a Vault token with the `payments-app` policy.
+
+4. **Vault Agent requests database credentials.** Using the issued Vault token, it calls `database/creds/payments-readonly`. Vault connects to PostgreSQL and creates a dynamic user: `v-k8s-payments-readonly-AbCdEf-1700000000`.
+
+5. **Vault Agent writes the credentials to a file.** It writes the username and password to `/vault/secrets/db-credentials` in the shared volume.
+
+6. **Application reads the credentials.** The payments service reads `/vault/secrets/db-credentials` and connects to PostgreSQL.
+
+7. **TLS is verified.** cert-manager has issued a certificate for `payments.myapp.internal`. The PostgreSQL connection uses this certificate with server verification.
+
+8. **mTLS handshake.** Istio intercepts the connection. The payments service presents its certificate (issued by Vault PKI), the database proxy presents its certificate. Both sides verify each other.
+
+9. **Network policy enforced.** Kubernetes NetworkPolicy allows TCP on port 5432 only from pods with `app: payments-service` to pods with `app: postgres`. The connection passes.
+
+10. **Everything is logged.** Vault audit log records the credential generation. CloudTrail records the IRSA token exchange. Istio records the connection. The application's own logs record the query. CloudWatch ingests everything.
+
+Not a single static credential was used anywhere in this flow.
+
+### What to Do Next
+
+This book has given you the concepts and the commands. The real learning comes from doing. Here's a suggested progression:
+
+**Week 1:** Set up a real AWS account. Enable CloudTrail. Conduct an IAM audit. Write your first policy with conditions and test it with the Policy Simulator.
+
+**Week 2:** Store application secrets in Secrets Manager. Write a Python/Go application that fetches credentials at runtime. Set up automatic rotation for an RDS database.
+
+**Week 3:** Deploy HashiCorp Vault on a local Minikube or EKS cluster. Configure the database secret engine. Generate dynamic credentials and verify they expire.
+
+**Week 4:** Set up OIDC for your GitHub Actions workflows. Deploy an application to EKS without any stored AWS credentials.
+
+**Week 5:** Install cert-manager and External Secrets Operator. Automate TLS certificate management for an application.
+
+**Week 6:** Set up secret scanning in your CI/CD pipeline. Build a runbook. Conduct a simulated leaked secret incident response exercise.
+
+**Every week:** Review IAM permissions. Check secret rotation status. Read CloudTrail and Vault audit logs.
+
+---
+
+### The Core Principles That Never Change
+
+Technology changes. AWS releases new services. Vault adds new secret engines. New tools emerge. But the principles in this book are durable:
+
+1. **Every identity should have only the access it needs.** (Chapter 1)
+2. **Verify identity, don't assume it.** (Chapters 2, 7, 12)
+3. **Secrets should never be static.** (Chapters 3, 5, 6)
+4. **Everything should be logged.** (Chapter 11)
+5. **Automate rotation and certificate management.** (Chapters 3, 9)
+6. **Scan for exposed secrets continuously.** (Chapter 10)
+7. **Limit what any single compromise can reach.** (Chapters 1, 12)
+
+A junior engineer who has read and practised this book is ready to contribute to a serious security engineering team. A senior engineer who has implemented all of this is ready to design and lead an organisation's entire secrets management programme.
+
+Security is a practice, not a destination. Keep learning, keep auditing, and keep building systems that would limit the damage of the breach that you haven't had yet.
+
+---
+
+*End of IAM & Secrets Management: A Comprehensive Learning Book for Cloud & DevOps Engineers*
+
+---
+
+## Quick Reference: All Commands
+
+### IAM
+```bash
+aws iam generate-credential-report
+aws iam get-credential-report --query 'Content' --output text | base64 --decode
+aws iam simulate-principal-policy --policy-source-arn ARN --action-names ACTION --resource-arns RESOURCE
+aws iam create-policy --policy-name NAME --policy-document file://policy.json
+aws accessanalyzer create-analyzer --analyzer-name NAME --type ACCOUNT
+```
+
+### Secrets Manager
+```bash
+aws secretsmanager create-secret --name NAME --secret-string VALUE
+aws secretsmanager get-secret-value --secret-id NAME --query 'SecretString' --output text
+aws secretsmanager rotate-secret --secret-id NAME --rotation-rules AutomaticallyAfterDays=30
+aws secretsmanager put-resource-policy --secret-id NAME --resource-policy file://policy.json
+```
+
+### Parameter Store
+```bash
+aws ssm put-parameter --name /path/to/param --value VALUE --type SecureString
+aws ssm get-parameter --name /path/to/param --with-decryption
+aws ssm get-parameters-by-path --path /prefix --with-decryption --recursive
+```
+
+### HashiCorp Vault
+```bash
+vault operator init -key-shares=5 -key-threshold=3
+vault operator unseal KEY
+vault secrets enable -path=secret kv-v2
+vault secrets enable database
+vault auth enable aws
+vault auth enable kubernetes
+vault policy write POLICY_NAME policy.hcl
+vault kv put secret/path key=value
+vault kv get secret/path
+vault read database/creds/ROLE_NAME
+vault audit enable file file_path=/vault/logs/audit.log
+```
+
+### cert-manager
+```bash
+helm install cert-manager jetstack/cert-manager --set crds.enabled=true
+kubectl describe certificate CERT_NAME
+kubectl describe clusterissuer ISSUER_NAME
+kubectl get orders,challenges
+```
+
+### Secret Scanning
+```bash
+trufflehog git file://. --only-verified --json
+gitleaks detect --source . --verbose --exit-code 1
+git secrets --scan-history
+git filter-repo --replace-text replacements.txt --force
+```
+
+### CloudTrail
+```bash
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=AccessKeyId,AttributeValue=AKID
+```
